@@ -1,0 +1,89 @@
+# === Dependencias ===
+node_modules/
+.pnpm-store/
+.pnp.*
+.yarn/cache
+.yarn/install-state.gz
+
+# === Builds ===
+dist/
+build/
+out/
+.next/
+.turbo/
+.vite/
+*.tsbuildinfo
+
+# === Variables de entorno ===
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+!.env.example
+
+# === Logs ===
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+
+# === Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === macOS ===
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# === Linux ===
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# === Windows ===
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# === Tests / Coverage ===
+coverage/
+.nyc_output/
+*.lcov
+
+# === Prisma ===
+prisma/migrations/dev/
+*.db
+*.db-journal
+
+# === Caches ===
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# === Secretos / Credenciales ===
+*.pem
+*.key
+*.p12
+secrets/
+
+# === Archivos temporales ===
+tmp/
+temp/
+
+# === Output del proyecto ===
+.electron-builder/
+release/
