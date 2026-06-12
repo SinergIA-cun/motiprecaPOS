@@ -13,6 +13,7 @@ Sistema integrado de POS, Cotizaciones, CRM y Producción para Motipreca.
 Toda la planeación, arquitectura y decisiones técnicas están en `/docs/handoff/`.
 
 Empieza por:
+
 - [`docs/handoff/00_README.md`](docs/handoff/00_README.md) — instrucciones generales
 - [`docs/handoff/01_plan_formal_motipreca.md`](docs/handoff/01_plan_formal_motipreca.md) — plan completo del proyecto
 - [`docs/handoff/06_plan_semana_1.md`](docs/handoff/06_plan_semana_1.md) — plan de la primera semana

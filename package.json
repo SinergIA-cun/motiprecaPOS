@@ -1,0 +1,43 @@
+{
+  "name": "motipreca",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sistema integrado de POS, Cotizaciones, CRM y Producción para Motipreca (SinergIA)",
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.3.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,html,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

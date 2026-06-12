@@ -1,0 +1,10 @@
+**/dist
+**/build
+**/node_modules
+**/.turbo
+**/.vite
+**/coverage
+pnpm-lock.yaml
+
+# Docs de handoff: material de referencia de la fase de planeación (no se reformatea)
+docs/handoff
