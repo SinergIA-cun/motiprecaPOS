@@ -1,0 +1,43 @@
+# Desarrollo local — PostgreSQL 16 + Redis 7
+# Arrancar:  docker compose up -d
+# Detener:   docker compose down
+# Reset BD:  docker compose down -v   (borra el volumen de datos)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: motipreca-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: motipreca
+      POSTGRES_PASSWORD: motipreca
+      POSTGRES_DB: motipreca
+    ports:
+      # Host 5433 -> contenedor 5432 (el 5432 del host lo ocupa un PostgreSQL nativo
+      # instalado en la Mac). El DATABASE_URL local apunta a 5433.
+      - '5433:5432'
+    volumes:
+      - motipreca-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U motipreca -d motipreca']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: motipreca-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - motipreca-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  motipreca-pgdata:
+  motipreca-redisdata:

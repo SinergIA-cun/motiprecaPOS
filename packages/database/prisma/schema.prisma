@@ -1,0 +1,104 @@
+// Motipreca — schema de Prisma.
+// Nota: el schema PostgreSQL `hidden` (módulo de efectivo) se habilita junto con
+// su primer modelo (Semana 4-5). Prisma rechaza un schema declarado sin tablas,
+// por eso aún no se declara `schemas = ["public", "hidden"]`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================================================
+// Enums
+// ===========================================================================
+
+enum Rol {
+  ASESOR
+  CAJERO
+  JEFE_DEPARTAMENTO
+  GERENTE
+  ADMINISTRADOR
+}
+
+/// Estado de sincronización con Alegra (Fase 1.5). Presente desde el día 1.
+enum EstadoSync {
+  PENDIENTE
+  SINCRONIZADO
+  ERROR
+  DESACTUALIZADO
+}
+
+enum TipoDocumento {
+  COTIZACION
+  VENTA_MOSTRADOR
+}
+
+// ===========================================================================
+// Modelos
+// ===========================================================================
+
+model Sucursal {
+  id              String     @id @default(cuid())
+  nombre          String     @unique
+  prefijoFolio    String     @unique // "CUN", "PDC", "MID"
+  direccion       String
+  telefono        String
+  email           String?
+  servidorLocalIp String? // POS offline (Fase 2)
+  activa          Boolean    @default(true)
+
+  // Integración Alegra (Fase 1.5) — mapea a bodega
+  alegraBodegaId  String?    @unique
+  estadoSync      EstadoSync @default(PENDIENTE)
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  usuarios        Usuario[]
+  rangosFolios    RangoFolio[]
+
+  @@index([activa])
+}
+
+model Usuario {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  nombre        String
+  telefono      String?
+  rol           Rol
+  iniciales     String // para folios (ej. "RJ")
+  sucursalId    String?
+  sucursal      Sucursal? @relation(fields: [sucursalId], references: [id])
+
+  // 2FA (TOTP) — obligatorio para Administrador
+  has2FA        Boolean   @default(false)
+  totpSecret    String?
+
+  activo        Boolean   @default(true)
+  ultimoLoginAt DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+  @@index([sucursalId])
+}
+
+model RangoFolio {
+  id            String        @id @default(cuid())
+  sucursalId    String
+  sucursal      Sucursal      @relation(fields: [sucursalId], references: [id])
+  tipoDocumento TipoDocumento
+  rangoInicio   Int
+  rangoFin      Int
+  proximoFolio  Int // siguiente número disponible
+  activo        Boolean       @default(true)
+
+  @@unique([sucursalId, tipoDocumento])
+  @@index([sucursalId])
+}

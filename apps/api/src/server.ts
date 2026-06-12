@@ -1,26 +1,40 @@
+import { prisma } from '@motipreca/database';
 import Fastify from 'fastify';
-
-const PORT = Number(process.env.PORT ?? 3000);
-const HOST = '0.0.0.0';
+import { env } from './lib/env.js';
+import { redis } from './lib/redis.js';
+import { healthRoutes } from './routes/health.js';
 
 const app = Fastify({
   logger: {
-    level: process.env.LOG_LEVEL ?? 'info',
+    level: env.LOG_LEVEL,
+    // Nunca loguear secrets (regla de seguridad).
+    redact: ['req.headers.authorization', 'req.headers.cookie', 'password', 'token', '*.password'],
   },
 });
 
-// Día 2 ampliará /health para validar conexión a BD (Postgres) y Redis.
-app.get('/health', async () => {
-  return { status: 'ok' };
-});
+await app.register(healthRoutes);
 
-async function start(): Promise<void> {
-  try {
-    await app.listen({ port: PORT, host: HOST });
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
+async function shutdown(signal: string): Promise<void> {
+  app.log.info(`Recibido ${signal}, cerrando conexiones...`);
+  await app.close();
+  await prisma.$disconnect();
+  redis.disconnect();
 }
 
-void start();
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    void shutdown(signal)
+      .then(() => process.exit(0))
+      .catch((err: unknown) => {
+        app.log.error({ err }, 'Error durante el shutdown');
+        process.exit(1);
+      });
+  });
+}
+
+try {
+  await app.listen({ port: env.PORT, host: '0.0.0.0' });
+} catch (err) {
+  app.log.error(err);
+  process.exit(1);
+}

@@ -1,4 +1,8 @@
-// @motipreca/database — Prisma schema, cliente, migraciones y seeds.
-// El schema.prisma (multi-schema public + hidden) y el PrismaClient se agregan en el Día 2.
+// @motipreca/database — PrismaClient compartido + re-export de tipos/enums generados.
 
-export const DATABASE_PACKAGE = '@motipreca/database' as const;
+import { PrismaClient } from '@prisma/client';
+
+export * from '@prisma/client';
+
+/** Instancia única de PrismaClient para toda la app. */
+export const prisma = new PrismaClient();

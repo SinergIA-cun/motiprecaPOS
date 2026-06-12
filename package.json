@@ -13,6 +13,9 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "db:generate": "pnpm --filter @motipreca/database run generate",
+    "db:migrate": "pnpm --filter @motipreca/database run migrate",
+    "db:studio": "pnpm --filter @motipreca/database run studio",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -22,6 +25,7 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@types/node": "^24.0.0",
+    "dotenv-cli": "^7.4.0",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
     "husky": "^9.1.0",
