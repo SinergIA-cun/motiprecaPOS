@@ -46,7 +46,7 @@ model Sucursal {
   nombre          String     @unique
   prefijoFolio    String     @unique // "CUN", "PDC", "MID"
   direccion       String
-  telefono        String
+  telefono        String? // pendiente de confirmar por sucursal
   email           String?
   servidorLocalIp String? // POS offline (Fase 2)
   activa          Boolean    @default(true)

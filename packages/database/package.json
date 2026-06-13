@@ -11,20 +11,27 @@
       "import": "./dist/index.js"
     }
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "scripts": {
     "build": "prisma generate && tsc -p tsconfig.json",
     "generate": "prisma generate",
     "migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
+    "seed": "dotenv -e ../../.env -- prisma db seed",
     "studio": "dotenv -e ../../.env -- prisma studio",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.0.0",
     "@prisma/client": "^6.0.0"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "dotenv-cli": "^7.4.0",
     "prisma": "^6.0.0",
+    "tsx": "^4.16.0",
     "typescript": "^5.5.0"
   }
 }
