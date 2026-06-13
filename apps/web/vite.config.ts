@@ -1,5 +1,6 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
@@ -7,7 +8,7 @@ import { defineConfig } from 'vite';
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   envDir: rootDir,
   server: {
     port: 5173,

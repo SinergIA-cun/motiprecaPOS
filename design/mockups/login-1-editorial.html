@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motipreca · Dirección 1 — Editorial Industrial</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;800;900&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --navy: #0f2557;
+        --navy-2: #1a3a8c;
+        --blue: #2c5aa0;
+        --paper: #f5f6f8;
+        --line: rgba(255, 255, 255, 0.07);
+        --ink: #14213d;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+        -webkit-font-smoothing: antialiased;
+      }
+      .stage {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        min-height: 100vh;
+      }
+
+      /* ---------- LEFT: blueprint panel ---------- */
+      .brand {
+        position: relative;
+        background: var(--navy);
+        color: #fff;
+        padding: 3.25rem 3.75rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 2rem;
+        overflow: hidden;
+      }
+      .brand::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 46px 46px;
+      }
+      /* registro tipo blueprint en una esquina, sutil y sin chevrons */
+      .mark {
+        position: absolute;
+        right: 3.5rem;
+        top: 3.5rem;
+        width: 26px;
+        height: 26px;
+        opacity: 0.35;
+      }
+      .mark::before,
+      .mark::after {
+        content: '';
+        position: absolute;
+        background: #6f9fe0;
+      }
+      .mark::before {
+        left: 50%;
+        top: 0;
+        width: 1.5px;
+        height: 100%;
+        transform: translateX(-50%);
+      }
+      .mark::after {
+        top: 50%;
+        left: 0;
+        height: 1.5px;
+        width: 100%;
+        transform: translateY(-50%);
+      }
+      .brand > * {
+        position: relative;
+        z-index: 1;
+      }
+      .brand-top {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+      }
+      .brand-logo {
+        height: 34px;
+        width: auto;
+        filter: brightness(0) invert(1);
+      }
+
+      .headline {
+        font-family: 'Archivo', sans-serif;
+        font-weight: 900;
+        font-size: clamp(2.6rem, 4.2vw, 4.3rem);
+        line-height: 0.95;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+      }
+      .headline em {
+        font-style: normal;
+        color: #6f9fe0;
+      }
+      .tagline {
+        margin-top: 1.4rem;
+        max-width: 32ch;
+        font-size: 1.02rem;
+        line-height: 1.6;
+        color: #b9c6e4;
+      }
+      .dim {
+        margin-top: 1.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: #5d75ad;
+        font-size: 0.7rem;
+        font-family: 'Archivo', sans-serif;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .dim .bar {
+        height: 1.5px;
+        width: 64px;
+        background: #3a5290;
+      }
+
+      /* ---------- footer del panel: specs + sucursales en flujo ---------- */
+      .footer {
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding-top: 1.6rem;
+      }
+      .specs {
+        display: flex;
+        gap: 2.75rem;
+        font-family: 'Archivo', sans-serif;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        color: #8aa0cf;
+      }
+      .specs b {
+        display: block;
+        font-size: 1.45rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        color: #fff;
+        margin-bottom: 3px;
+      }
+      .branches {
+        margin-top: 1.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.82rem;
+        color: #aebbd9;
+      }
+      .branches .pin {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #6f9fe0;
+        flex: none;
+      }
+
+      /* ---------- RIGHT: form ---------- */
+      .panel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem;
+      }
+      .form {
+        width: 100%;
+        max-width: 360px;
+      }
+      .kicker {
+        font-family: 'Archivo', sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        color: var(--blue);
+      }
+      .form h1 {
+        font-family: 'Archivo', sans-serif;
+        font-weight: 800;
+        font-size: 2.1rem;
+        letter-spacing: -0.02em;
+        margin: 0.5rem 0 0.4rem;
+        color: var(--navy);
+      }
+      .form p.sub {
+        color: #6b7280;
+        font-size: 0.94rem;
+        margin-bottom: 2.2rem;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.8rem;
+        letter-spacing: 0.02em;
+        color: #374151;
+        margin-bottom: 0.45rem;
+      }
+      .field {
+        margin-bottom: 1.25rem;
+      }
+      input {
+        width: 100%;
+        height: 50px;
+        border: 1.5px solid #dfe3ea;
+        border-radius: 10px;
+        padding: 0 1rem;
+        font-size: 0.98rem;
+        font-family: inherit;
+        background: #fff;
+        transition: all 0.18s ease;
+      }
+      input:focus {
+        outline: none;
+        border-color: var(--navy-2);
+        box-shadow: 0 0 0 4px rgba(26, 58, 140, 0.12);
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: -0.3rem 0 1.6rem;
+      }
+      .row a {
+        color: var(--blue);
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-decoration: none;
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: #6b7280;
+      }
+      button {
+        width: 100%;
+        height: 52px;
+        border: none;
+        border-radius: 10px;
+        background: var(--navy-2);
+        color: #fff;
+        font-family: 'Archivo', sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition:
+          transform 0.12s ease,
+          background 0.18s ease;
+      }
+      button:hover {
+        background: var(--navy);
+        transform: translateY(-2px);
+      }
+      button:active {
+        transform: translateY(0);
+      }
+      .foot {
+        margin-top: 2.5rem;
+        font-size: 0.78rem;
+        color: #9aa3b2;
+      }
+      @media (max-width: 860px) {
+        .stage {
+          grid-template-columns: 1fr;
+        }
+        .brand {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <section class="brand">
+        <span class="mark" aria-hidden="true"></span>
+
+        <div class="brand-top">
+          <img class="brand-logo" src="logo.png" alt="Motipreca" />
+        </div>
+
+        <div>
+          <h1 class="headline">Construido<br />sobre <em>concreto.</em></h1>
+          <p class="tagline">
+            Sistema de cotizaciones y punto de venta. Tres sucursales, una sola operación.
+          </p>
+          <div class="dim"><span class="bar"></span> Sinergia × Motipreca</div>
+        </div>
+
+        <div class="footer">
+          <div class="specs">
+            <div><b>3</b>Sucursales</div>
+            <div><b>POS</b>+ Cotizador</div>
+            <div><b>CRM</b>Integrado</div>
+          </div>
+          <div class="branches"><span class="pin"></span> Cancún · Playa del Carmen · Mérida</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <form class="form" onsubmit="return false;">
+          <div class="kicker">Acceso al sistema</div>
+          <h1>Inicia sesión</h1>
+          <p class="sub">Ingresa tus credenciales para continuar.</p>
+
+          <div class="field">
+            <label>Correo electrónico</label>
+            <input type="email" placeholder="tu@motipreca.com" value="admin@test.com" />
+          </div>
+          <div class="field">
+            <label>Contraseña</label>
+            <input type="password" placeholder="••••••••" value="test1234" />
+          </div>
+          <div class="row">
+            <span class="check"
+              ><input type="checkbox" style="width: auto; height: auto" checked /> Recordarme</span
+            >
+            <a href="#">¿Olvidaste tu contraseña?</a>
+          </div>
+          <button type="submit">Entrar</button>
+          <p class="foot">Acceso restringido al personal autorizado de Motipreca.</p>
+        </form>
+      </section>
+    </div>
+  </body>
+</html>

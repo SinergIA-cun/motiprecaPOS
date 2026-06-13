@@ -1,6 +1,11 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { App } from './App';
+import { RouterProvider } from 'react-router-dom';
+import './index.css';
+import { queryClient } from './lib/queryClient';
+import { AuthProvider } from './providers/AuthProvider';
+import { router } from './router';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -9,6 +14,10 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </QueryClientProvider>
   </React.StrictMode>,
 );
