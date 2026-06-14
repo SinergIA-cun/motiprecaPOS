@@ -25,7 +25,9 @@ async function request<T>(path: string, init: RequestInit, withAuth: boolean): P
     ...init,
     credentials: 'include', // envía/recibe la cookie de refresh
     headers: {
-      'Content-Type': 'application/json',
+      // Solo declarar JSON cuando hay body; si no, Fastify intenta parsear
+      // un body vacío y responde 400 (rompía /auth/refresh y /auth/logout).
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
       ...(withAuth && token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
