@@ -1,0 +1,26 @@
+# Contexto de build Docker (raíz del monorepo).
+# node_modules y dist se reconstruyen DENTRO del contenedor (binarios Linux de
+# @node-rs/argon2 y del engine de Prisma). Nunca copiar los del host (macOS).
+node_modules
+**/node_modules
+dist
+**/dist
+.turbo
+**/.turbo
+
+# Git / tooling / editor
+.git
+.gitignore
+.husky
+.vscode
+.claude
+.DS_Store
+*.log
+
+# Secretos: jamás entran a la imagen (las vars vienen del entorno de EasyPanel)
+.env
+.env.*
+
+# No hace falta en la imagen
+design
+docs
