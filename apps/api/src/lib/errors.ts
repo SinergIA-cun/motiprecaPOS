@@ -32,6 +32,11 @@ export const unauthorized = (message = 'No autenticado'): AppError =>
 export const forbidden = (message = 'No tienes permisos para este recurso'): AppError =>
   new AppError(403, 'FORBIDDEN', message);
 
+export const notFound = (message = 'Recurso no encontrado'): AppError =>
+  new AppError(404, 'NOT_FOUND', message);
+
+export const conflict = (message: string): AppError => new AppError(409, 'CONFLICT', message);
+
 export const rateLimited = (
   message = 'Demasiados intentos. Intenta de nuevo en unos minutos.',
 ): AppError => new AppError(429, 'RATE_LIMITED', message);

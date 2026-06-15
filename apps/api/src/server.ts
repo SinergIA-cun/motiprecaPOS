@@ -10,6 +10,8 @@ import { AppError } from './lib/errors.js';
 import { redis } from './lib/redis.js';
 import { authRoutes } from './routes/auth.js';
 import { healthRoutes } from './routes/health.js';
+import { sucursalRoutes } from './routes/sucursales.js';
+import { usuarioRoutes } from './routes/usuarios.js';
 
 const isProd = env.NODE_ENV === 'production';
 
@@ -80,6 +82,8 @@ app.setErrorHandler((error, request, reply) => {
 // ---- Rutas ----
 await app.register(healthRoutes);
 await app.register(authRoutes);
+await app.register(sucursalRoutes);
+await app.register(usuarioRoutes);
 
 // ---- Graceful shutdown (regla #57) ----
 async function shutdown(signal: string): Promise<void> {

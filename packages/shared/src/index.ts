@@ -3,4 +3,6 @@
 export const APP_NAME = 'Motipreca' as const;
 
 export * from './schemas/auth.js';
+export * from './schemas/sucursal.js';
+export * from './schemas/usuario.js';
 export * from './types/user.js';
