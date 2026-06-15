@@ -16,9 +16,11 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-# Vite hornea las variables VITE_* en build time. EasyPanel las pasa como
-# "Build arguments" (NO como variables de runtime: el bundle ya quedó fijo).
-ARG VITE_API_URL
+# Vite hornea las variables VITE_* en build time (quedan fijas en el bundle).
+# La URL del API va como default aquí: no es secreto (es la URL pública) y así
+# NO se necesitan "Build args" en EasyPanel. Si cambia el dominio, se edita
+# esta línea y se redespliega.
+ARG VITE_API_URL=https://motiapi.somossinergia.com
 ARG VITE_APP_NAME=Motipreca
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_APP_NAME=$VITE_APP_NAME
