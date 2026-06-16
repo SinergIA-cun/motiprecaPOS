@@ -5,12 +5,14 @@ import { conflict, notFound, validationError } from '../lib/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 
-// Todas las rutas de administración requieren sesión + rol Administrador (regla #16).
+// Lectura: cualquier usuario autenticado (la lista de sucursales es dato de referencia
+// que clientes/cotizaciones necesitan). Escritura: solo Administrador (regla #16).
+const auth = { preHandler: [authenticate] };
 const adminOnly = { preHandler: [authenticate, authorize('ADMINISTRADOR')] };
 
 export async function sucursalRoutes(app: FastifyInstance): Promise<void> {
   // ---- GET /sucursales?activa=true|false ----
-  app.get('/sucursales', adminOnly, async (request) => {
+  app.get('/sucursales', auth, async (request) => {
     const { activa } = request.query as { activa?: string };
     const where: Prisma.SucursalWhereInput =
       activa === undefined ? {} : { activa: activa === 'true' };
@@ -19,7 +21,7 @@ export async function sucursalRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- GET /sucursales/:id ----
-  app.get('/sucursales/:id', adminOnly, async (request) => {
+  app.get('/sucursales/:id', auth, async (request) => {
     const { id } = request.params as { id: string };
     const sucursal = await prisma.sucursal.findUnique({ where: { id } });
     if (!sucursal) throw notFound('Sucursal no encontrada');

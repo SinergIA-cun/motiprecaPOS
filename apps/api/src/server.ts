@@ -9,6 +9,7 @@ import { env } from './lib/env.js';
 import { AppError } from './lib/errors.js';
 import { redis } from './lib/redis.js';
 import { authRoutes } from './routes/auth.js';
+import { clienteRoutes } from './routes/clientes.js';
 import { healthRoutes } from './routes/health.js';
 import { sucursalRoutes } from './routes/sucursales.js';
 import { usuarioRoutes } from './routes/usuarios.js';
@@ -84,6 +85,7 @@ await app.register(healthRoutes);
 await app.register(authRoutes);
 await app.register(sucursalRoutes);
 await app.register(usuarioRoutes);
+await app.register(clienteRoutes);
 
 // ---- Graceful shutdown (regla #57) ----
 async function shutdown(signal: string): Promise<void> {

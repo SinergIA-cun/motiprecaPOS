@@ -60,6 +60,7 @@ model Sucursal {
 
   usuarios        Usuario[]
   rangosFolios    RangoFolio[]
+  clientes        Cliente[]
 
   @@index([activa])
 }
@@ -101,4 +102,36 @@ model RangoFolio {
 
   @@unique([sucursalId, tipoDocumento])
   @@index([sucursalId])
+}
+
+// ===========================================================================
+// CRM — Clientes
+// ===========================================================================
+
+model Cliente {
+  id         String      @id @default(cuid())
+  nombre     String
+  tipo       TipoCliente @default(INDIVIDUAL)
+  telefono   String?
+  email      String?
+  rfc        String? // dato fiscal básico (MVP); facturación completa en fase posterior
+  notas      String?
+  sucursalId String?
+  sucursal   Sucursal?   @relation(fields: [sucursalId], references: [id])
+  activo     Boolean     @default(true)
+
+  // Integración Alegra (Fase 1.5)
+  alegraId   String?    @unique
+  estadoSync EstadoSync @default(PENDIENTE)
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([sucursalId])
+  @@index([activo])
+}
+
+enum TipoCliente {
+  INDIVIDUAL
+  EMPRESA
 }

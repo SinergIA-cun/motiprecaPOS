@@ -1,8 +1,10 @@
 import type {
   AuthUser,
+  CreateClienteInput,
   CreateSucursalInput,
   CreateUsuarioInput,
   Rol,
+  UpdateClienteInput,
   UpdateSucursalInput,
   UpdateUsuarioInput,
 } from '@motipreca/shared';
@@ -112,6 +114,49 @@ export interface UsuariosFilter {
   rol?: Rol;
   activo?: boolean;
 }
+
+export interface Cliente {
+  id: string;
+  nombre: string;
+  tipo: 'INDIVIDUAL' | 'EMPRESA';
+  telefono: string | null;
+  email: string | null;
+  rfc: string | null;
+  notas: string | null;
+  sucursalId: string | null;
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientesFilter {
+  q?: string;
+  activo?: boolean;
+  sucursalId?: string;
+}
+
+export const clientesApi = {
+  list: (filter: ClientesFilter = {}) => {
+    const qs = new URLSearchParams();
+    if (filter.q) qs.set('q', filter.q);
+    if (filter.activo !== undefined) qs.set('activo', String(filter.activo));
+    if (filter.sucursalId) qs.set('sucursalId', filter.sucursalId);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<{ data: Cliente[] }>(`/clientes${suffix}`, {}, true).then((r) => r.data);
+  },
+  create: (input: CreateClienteInput) =>
+    request<{ data: Cliente }>(
+      '/clientes',
+      { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+  update: (id: string, input: UpdateClienteInput) =>
+    request<{ data: Cliente }>(
+      `/clientes/${id}`,
+      { method: 'PATCH', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+};
 
 export const sucursalesApi = {
   list: () => request<{ data: Sucursal[] }>('/sucursales', {}, true).then((r) => r.data),

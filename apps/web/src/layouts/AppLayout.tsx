@@ -14,7 +14,7 @@ interface NavEntry {
 const NAV_OPERACION: NavEntry[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: true },
   { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText, ready: false },
-  { to: '/clientes', label: 'Clientes', icon: Users, ready: false },
+  { to: '/clientes', label: 'Clientes', icon: Users, ready: true },
 ];
 
 const NAV_ADMIN: NavEntry[] = [
