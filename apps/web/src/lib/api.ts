@@ -1,10 +1,12 @@
 import type {
   AuthUser,
   CreateClienteInput,
+  CreateProductoInput,
   CreateSucursalInput,
   CreateUsuarioInput,
   Rol,
   UpdateClienteInput,
+  UpdateProductoInput,
   UpdateSucursalInput,
   UpdateUsuarioInput,
 } from '@motipreca/shared';
@@ -153,6 +155,52 @@ export const clientesApi = {
   update: (id: string, input: UpdateClienteInput) =>
     request<{ data: Cliente }>(
       `/clientes/${id}`,
+      { method: 'PATCH', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+};
+
+export type Unidad = 'M2' | 'PZA' | 'ML' | 'KG' | 'JGO' | 'LT' | 'M3' | 'TON';
+export type TipoProducto = 'BAJO_PEDIDO' | 'STOCK_SIN_REPOSICION' | 'STOCK_MINIMO';
+
+export interface Producto {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  categoria: string | null;
+  unidad: Unidad;
+  tipoProducto: TipoProducto;
+  precioBase: string; // Decimal serializado como string
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductosFilter {
+  q?: string;
+  activo?: boolean;
+  categoria?: string;
+}
+
+export const productosApi = {
+  list: (filter: ProductosFilter = {}) => {
+    const qs = new URLSearchParams();
+    if (filter.q) qs.set('q', filter.q);
+    if (filter.activo !== undefined) qs.set('activo', String(filter.activo));
+    if (filter.categoria) qs.set('categoria', filter.categoria);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<{ data: Producto[] }>(`/productos${suffix}`, {}, true).then((r) => r.data);
+  },
+  create: (input: CreateProductoInput) =>
+    request<{ data: Producto }>(
+      '/productos',
+      { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+  update: (id: string, input: UpdateProductoInput) =>
+    request<{ data: Producto }>(
+      `/productos/${id}`,
       { method: 'PATCH', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),

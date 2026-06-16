@@ -5,6 +5,7 @@ import { PublicOnlyRoute } from './components/PublicOnlyRoute';
 import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { ClientesPage } from './features/clientes/ClientesPage';
+import { ProductosPage } from './features/productos/ProductosPage';
 import { SucursalesPage } from './features/admin/sucursales/SucursalesPage';
 import { UsuariosPage } from './features/admin/usuarios/UsuariosPage';
 import { AppLayout } from './layouts/AppLayout';
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
           { path: '/', element: <Navigate to="/dashboard" replace /> },
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/clientes', element: <ClientesPage /> },
+          { path: '/productos', element: <ProductosPage /> },
           {
             element: <AdminRoute />,
             children: [

@@ -135,3 +135,48 @@ enum TipoCliente {
   INDIVIDUAL
   EMPRESA
 }
+
+// ===========================================================================
+// Catálogo — Productos
+// (MVP: `categoria` libre + `precioBase` único. Familias y listas de precios
+//  formales se incorporan en una fase posterior.)
+// ===========================================================================
+
+model Producto {
+  id           String       @id @default(cuid())
+  codigo       String       @unique
+  nombre       String
+  descripcion  String?
+  categoria    String? // agrupación ligera (MVP)
+  unidad       Unidad       @default(PZA)
+  tipoProducto TipoProducto @default(BAJO_PEDIDO)
+  precioBase   Decimal      @default(0) @db.Decimal(12, 2)
+  activo       Boolean      @default(true)
+
+  // Integración Alegra (Fase 1.5)
+  alegraId     String?      @unique
+  estadoSync   EstadoSync   @default(PENDIENTE)
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([codigo])
+  @@index([activo])
+}
+
+enum Unidad {
+  M2
+  PZA
+  ML
+  KG
+  JGO
+  LT
+  M3
+  TON
+}
+
+enum TipoProducto {
+  BAJO_PEDIDO
+  STOCK_SIN_REPOSICION
+  STOCK_MINIMO
+}
