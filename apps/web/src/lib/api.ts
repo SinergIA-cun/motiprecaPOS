@@ -1,15 +1,19 @@
 import type {
   AuthUser,
   CreateClienteInput,
+  CreateCotizacionInput,
   CreateProductoInput,
   CreateSucursalInput,
   CreateUsuarioInput,
+  EstadoCotizacion,
   Rol,
   UpdateClienteInput,
   UpdateProductoInput,
   UpdateSucursalInput,
   UpdateUsuarioInput,
 } from '@motipreca/shared';
+
+export type { EstadoCotizacion } from '@motipreca/shared';
 import { useAuthStore } from '../stores/auth';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -202,6 +206,88 @@ export const productosApi = {
     request<{ data: Producto }>(
       `/productos/${id}`,
       { method: 'PATCH', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+};
+
+// ---- Cotizaciones (montos llegan como string: Decimal serializado) ----
+
+export interface CotizacionListItem {
+  id: string;
+  folio: string;
+  estado: EstadoCotizacion;
+  total: string;
+  createdAt: string;
+  vigenciaHasta: string;
+  cliente: { id: string; nombre: string };
+  sucursal: { prefijoFolio: string };
+  asesor: { nombre: string; iniciales: string };
+}
+
+export interface ItemCotizacion {
+  id: string;
+  productoId: string;
+  descripcion: string;
+  cantidad: string;
+  precioUnitario: string;
+  descuentoPct: string;
+  importe: string;
+  orden: number;
+}
+
+export interface CotizacionDetail {
+  id: string;
+  folio: string;
+  estado: EstadoCotizacion;
+  subtotal: string;
+  descuentoTotal: string;
+  iva: string;
+  total: string;
+  vigencia: number;
+  vigenciaHasta: string;
+  observaciones: string | null;
+  createdAt: string;
+  items: ItemCotizacion[];
+  cliente: {
+    id: string;
+    nombre: string;
+    rfc: string | null;
+    telefono: string | null;
+    email: string | null;
+  };
+  sucursal: { id: string; nombre: string; prefijoFolio: string };
+  asesor: { nombre: string; iniciales: string };
+}
+
+export interface CotizacionesFilter {
+  estado?: EstadoCotizacion;
+  clienteId?: string;
+  q?: string;
+}
+
+export const cotizacionesApi = {
+  list: (filter: CotizacionesFilter = {}) => {
+    const qs = new URLSearchParams();
+    if (filter.estado) qs.set('estado', filter.estado);
+    if (filter.clienteId) qs.set('clienteId', filter.clienteId);
+    if (filter.q) qs.set('q', filter.q);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<{ data: CotizacionListItem[] }>(`/cotizaciones${suffix}`, {}, true).then(
+      (r) => r.data,
+    );
+  },
+  get: (id: string) =>
+    request<{ data: CotizacionDetail }>(`/cotizaciones/${id}`, {}, true).then((r) => r.data),
+  create: (input: CreateCotizacionInput) =>
+    request<{ data: CotizacionDetail }>(
+      '/cotizaciones',
+      { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+  updateEstado: (id: string, estado: EstadoCotizacion) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}/estado`,
+      { method: 'PATCH', body: JSON.stringify({ estado }) },
       true,
     ).then((r) => r.data),
 };

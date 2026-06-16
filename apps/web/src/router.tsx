@@ -5,6 +5,9 @@ import { PublicOnlyRoute } from './components/PublicOnlyRoute';
 import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { ClientesPage } from './features/clientes/ClientesPage';
+import { CotizacionBuilderPage } from './features/cotizaciones/CotizacionBuilderPage';
+import { CotizacionDetailPage } from './features/cotizaciones/CotizacionDetailPage';
+import { CotizacionesPage } from './features/cotizaciones/CotizacionesPage';
 import { ProductosPage } from './features/productos/ProductosPage';
 import { SucursalesPage } from './features/admin/sucursales/SucursalesPage';
 import { UsuariosPage } from './features/admin/usuarios/UsuariosPage';
@@ -26,6 +29,9 @@ export const router = createBrowserRouter([
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/clientes', element: <ClientesPage /> },
           { path: '/productos', element: <ProductosPage /> },
+          { path: '/cotizaciones', element: <CotizacionesPage /> },
+          { path: '/cotizaciones/nueva', element: <CotizacionBuilderPage /> },
+          { path: '/cotizaciones/:id', element: <CotizacionDetailPage /> },
           {
             element: <AdminRoute />,
             children: [
