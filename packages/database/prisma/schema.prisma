@@ -61,6 +61,7 @@ model Sucursal {
   usuarios        Usuario[]
   rangosFolios    RangoFolio[]
   clientes        Cliente[]
+  cotizaciones    Cotizacion[]
 
   @@index([activa])
 }
@@ -85,6 +86,8 @@ model Usuario {
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  cotizaciones  Cotizacion[] @relation("asesor")
 
   @@index([email])
   @@index([sucursalId])
@@ -127,6 +130,8 @@ model Cliente {
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
+  cotizaciones Cotizacion[]
+
   @@index([sucursalId])
   @@index([activo])
 }
@@ -160,6 +165,8 @@ model Producto {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  items      ItemCotizacion[]
+
   @@index([codigo])
   @@index([activo])
 }
@@ -179,4 +186,68 @@ enum TipoProducto {
   BAJO_PEDIDO
   STOCK_SIN_REPOSICION
   STOCK_MINIMO
+}
+
+// ===========================================================================
+// Cotizaciones
+// ===========================================================================
+
+model Cotizacion {
+  id             String           @id @default(cuid())
+  folio          String           @unique // "CUN-COT-000001"
+
+  sucursalId     String
+  sucursal       Sucursal         @relation(fields: [sucursalId], references: [id])
+  asesorId       String
+  asesor         Usuario          @relation("asesor", fields: [asesorId], references: [id])
+  clienteId      String
+  cliente        Cliente          @relation(fields: [clienteId], references: [id])
+
+  estado         EstadoCotizacion @default(ABIERTA)
+
+  subtotal       Decimal          @default(0) @db.Decimal(12, 2)
+  descuentoTotal Decimal          @default(0) @db.Decimal(12, 2)
+  iva            Decimal          @default(0) @db.Decimal(12, 2)
+  total          Decimal          @default(0) @db.Decimal(12, 2)
+
+  vigencia       Int              @default(15) // días
+  vigenciaHasta  DateTime
+  observaciones  String?
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  items          ItemCotizacion[]
+
+  @@index([sucursalId])
+  @@index([asesorId])
+  @@index([clienteId])
+  @@index([estado])
+  @@index([folio])
+}
+
+enum EstadoCotizacion {
+  ABIERTA
+  APROBADA
+  RECHAZADA
+  COBRADA
+  EXPIRADA
+  ELIMINADA
+}
+
+model ItemCotizacion {
+  id             String     @id @default(cuid())
+  cotizacionId   String
+  cotizacion     Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  productoId     String
+  producto       Producto   @relation(fields: [productoId], references: [id])
+
+  descripcion    String // snapshot del nombre del producto al momento
+  cantidad       Decimal    @db.Decimal(10, 2)
+  precioUnitario Decimal    @db.Decimal(12, 2)
+  descuentoPct   Decimal    @default(0) @db.Decimal(5, 2)
+  importe        Decimal    @db.Decimal(12, 2)
+  orden          Int        @default(0)
+
+  @@index([cotizacionId])
 }

@@ -10,6 +10,7 @@ import { AppError } from './lib/errors.js';
 import { redis } from './lib/redis.js';
 import { authRoutes } from './routes/auth.js';
 import { clienteRoutes } from './routes/clientes.js';
+import { cotizacionRoutes } from './routes/cotizaciones.js';
 import { healthRoutes } from './routes/health.js';
 import { productoRoutes } from './routes/productos.js';
 import { sucursalRoutes } from './routes/sucursales.js';
@@ -88,6 +89,7 @@ await app.register(sucursalRoutes);
 await app.register(usuarioRoutes);
 await app.register(clienteRoutes);
 await app.register(productoRoutes);
+await app.register(cotizacionRoutes);
 
 // ---- Graceful shutdown (regla #57) ----
 async function shutdown(signal: string): Promise<void> {
