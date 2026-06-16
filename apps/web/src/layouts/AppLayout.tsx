@@ -1,18 +1,78 @@
-import { FileText, LayoutDashboard, LogOut, MapPin, Users } from 'lucide-react';
+import { Building2, FileText, LayoutDashboard, LogOut, UserCog, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { cn } from '../lib/cn';
 import { useAuth } from '../hooks/useAuth';
+import { cn } from '../lib/cn';
 
-const NAV = [
+interface NavEntry {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  ready: boolean;
+}
+
+const NAV_OPERACION: NavEntry[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: true },
   { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText, ready: false },
   { to: '/clientes', label: 'Clientes', icon: Users, ready: false },
-  { to: '/sucursales', label: 'Sucursales', icon: MapPin, ready: false },
 ];
+
+const NAV_ADMIN: NavEntry[] = [
+  { to: '/admin/sucursales', label: 'Sucursales', icon: Building2, ready: true },
+  { to: '/admin/usuarios', label: 'Usuarios', icon: UserCog, ready: true },
+];
+
+function NavItem({ item }: { item: NavEntry }) {
+  if (!item.ready) {
+    return (
+      <span className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-navy-400/70">
+        <item.icon size={18} strokeWidth={1.75} />
+        {item.label}
+        <span className="ml-auto font-mono text-[0.58rem] uppercase tracking-wide text-navy-400">
+          pronto
+        </span>
+      </span>
+    );
+  }
+  return (
+    <NavLink
+      to={item.to}
+      className={({ isActive }) =>
+        cn(
+          'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+          isActive
+            ? 'bg-navy-700 font-medium text-white'
+            : 'text-navy-200 hover:bg-white/5 hover:text-white',
+        )
+      }
+    >
+      <item.icon size={18} strokeWidth={1.75} />
+      {item.label}
+    </NavLink>
+  );
+}
+
+function NavGroup({ title, items }: { title: string; items: NavEntry[] }) {
+  return (
+    <div className="mb-2">
+      <p className="px-3 pb-2 font-mono text-[0.62rem] uppercase tracking-[0.16em] text-navy-400">
+        {title}
+      </p>
+      <ul className="space-y-0.5">
+        {items.map((item) => (
+          <li key={item.to}>
+            <NavItem item={item} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = user?.rol === 'ADMINISTRADOR';
 
   async function handleLogout() {
     await logout();
@@ -32,39 +92,8 @@ export function AppLayout() {
         </div>
 
         <nav className="flex-1 px-3 py-5">
-          <p className="px-3 pb-2 font-mono text-[0.62rem] uppercase tracking-[0.16em] text-navy-400">
-            Operación
-          </p>
-          <ul className="space-y-0.5">
-            {NAV.map((item) => (
-              <li key={item.to}>
-                {item.ready ? (
-                  <NavLink
-                    to={item.to}
-                    className={({ isActive }) =>
-                      cn(
-                        'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-                        isActive
-                          ? 'bg-navy-700 font-medium text-white'
-                          : 'text-navy-200 hover:bg-white/5 hover:text-white',
-                      )
-                    }
-                  >
-                    <item.icon size={18} strokeWidth={1.75} />
-                    {item.label}
-                  </NavLink>
-                ) : (
-                  <span className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-navy-400/70">
-                    <item.icon size={18} strokeWidth={1.75} />
-                    {item.label}
-                    <span className="ml-auto font-mono text-[0.58rem] uppercase tracking-wide text-navy-400">
-                      pronto
-                    </span>
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <NavGroup title="Operación" items={NAV_OPERACION} />
+          {isAdmin ? <NavGroup title="Administración" items={NAV_ADMIN} /> : null}
         </nav>
 
         <div className="border-t border-white/10 p-3">

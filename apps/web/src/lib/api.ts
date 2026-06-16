@@ -1,4 +1,11 @@
-import type { AuthUser } from '@motipreca/shared';
+import type {
+  AuthUser,
+  CreateSucursalInput,
+  CreateUsuarioInput,
+  Rol,
+  UpdateSucursalInput,
+  UpdateUsuarioInput,
+} from '@motipreca/shared';
 import { useAuthStore } from '../stores/auth';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -11,11 +18,13 @@ interface ApiErrorBody {
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  readonly details?: unknown;
+  constructor(status: number, code: string, message: string, details?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -36,14 +45,16 @@ async function request<T>(path: string, init: RequestInit, withAuth: boolean): P
   if (!res.ok) {
     let code = 'ERROR';
     let message = 'Ocurrió un error. Intenta de nuevo.';
+    let details: unknown;
     try {
       const body = (await res.json()) as ApiErrorBody;
       code = body.error?.code ?? code;
       message = body.error?.message ?? message;
+      details = body.error?.details;
     } catch {
       // respuesta sin cuerpo JSON
     }
-    throw new ApiError(res.status, code, message);
+    throw new ApiError(res.status, code, message, details);
   }
 
   if (res.status === 204) return undefined as T;
@@ -64,4 +75,79 @@ export const authApi = {
     ),
   refresh: () => request<AuthResponse>('/auth/refresh', { method: 'POST' }, false),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }, false),
+};
+
+// ---- Administración (solo Admin) ----
+
+export interface Sucursal {
+  id: string;
+  nombre: string;
+  prefijoFolio: string;
+  direccion: string;
+  telefono: string | null;
+  email: string | null;
+  activa: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UsuarioAdmin {
+  id: string;
+  email: string;
+  nombre: string;
+  telefono: string | null;
+  rol: Rol;
+  iniciales: string;
+  sucursalId: string | null;
+  activo: boolean;
+  has2FA: boolean;
+  ultimoLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sucursal?: { id: string; nombre: string; prefijoFolio: string } | null;
+}
+
+export interface UsuariosFilter {
+  sucursalId?: string;
+  rol?: Rol;
+  activo?: boolean;
+}
+
+export const sucursalesApi = {
+  list: () => request<{ data: Sucursal[] }>('/sucursales', {}, true).then((r) => r.data),
+  create: (input: CreateSucursalInput) =>
+    request<{ data: Sucursal }>(
+      '/sucursales',
+      { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+  update: (id: string, input: UpdateSucursalInput) =>
+    request<{ data: Sucursal }>(
+      `/sucursales/${id}`,
+      { method: 'PATCH', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+};
+
+export const usuariosApi = {
+  list: (filter: UsuariosFilter = {}) => {
+    const qs = new URLSearchParams();
+    if (filter.sucursalId) qs.set('sucursalId', filter.sucursalId);
+    if (filter.rol) qs.set('rol', filter.rol);
+    if (filter.activo !== undefined) qs.set('activo', String(filter.activo));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<{ data: UsuarioAdmin[] }>(`/usuarios${suffix}`, {}, true).then((r) => r.data);
+  },
+  create: (input: CreateUsuarioInput) =>
+    request<{ data: UsuarioAdmin }>(
+      '/usuarios',
+      { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+  update: (id: string, input: UpdateUsuarioInput) =>
+    request<{ data: UsuarioAdmin }>(
+      `/usuarios/${id}`,
+      { method: 'PATCH', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
 };
