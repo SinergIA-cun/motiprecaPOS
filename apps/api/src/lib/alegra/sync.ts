@@ -11,7 +11,14 @@ export interface SyncSummary {
 }
 
 export async function syncFromAlegra(): Promise<SyncSummary> {
-  const [contacts, items] = await Promise.all([fetchContacts(), fetchItems()]);
+  // allSettled (no Promise.all): si ambos fetch fallan, Promise.all dejaría la
+  // segunda promesa como unhandledRejection y Node mataría el proceso. Con
+  // allSettled esperamos ambas y propagamos el error como excepción manejable.
+  const [contactsResult, itemsResult] = await Promise.allSettled([fetchContacts(), fetchItems()]);
+  if (contactsResult.status === 'rejected') throw contactsResult.reason;
+  if (itemsResult.status === 'rejected') throw itemsResult.reason;
+  const contacts = contactsResult.value;
+  const items = itemsResult.value;
   const detalle: string[] = [];
 
   let cCreados = 0;
