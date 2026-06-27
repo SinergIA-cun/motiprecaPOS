@@ -1,5 +1,5 @@
 import type { CreateProductoInput, UpdateProductoInput } from '@motipreca/shared';
-import { Pencil, Plus, Search } from 'lucide-react';
+import { Pencil, Plus, RefreshCw, Search } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/ui/Badge';
@@ -7,8 +7,15 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { useAuth } from '../../hooks/useAuth';
-import { ApiError, type Producto, type ProductosFilter, type Unidad } from '../../lib/api';
+import {
+  ApiError,
+  type AlegraSyncResult,
+  type Producto,
+  type ProductosFilter,
+  type Unidad,
+} from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { useSyncAlegra } from '../sync/hooks';
 import { ProductoForm } from './ProductoForm';
 import { useCreateProducto, useProductos, useUpdateProducto } from './hooks';
 
@@ -31,8 +38,21 @@ export function ProductosPage() {
   const { data: productos, isLoading, isError } = useProductos(filter);
   const createMut = useCreateProducto();
   const updateMut = useUpdateProducto();
+  const syncMut = useSyncAlegra();
   const [editing, setEditing] = useState<Producto | null>(null);
   const [creating, setCreating] = useState(false);
+  const [syncResult, setSyncResult] = useState<AlegraSyncResult | null>(null);
+
+  function handleSync() {
+    syncMut.mutate(undefined, {
+      onSuccess: (result) => setSyncResult(result),
+      onError: (error) =>
+        setSyncResult({
+          ok: false,
+          error: error instanceof ApiError ? error.message : 'No se pudo conectar con el servidor.',
+        }),
+    });
+  }
 
   const isOpen = creating || editing !== null;
   const pending = createMut.isPending || updateMut.isPending;
@@ -64,10 +84,25 @@ export function ProductosPage() {
         crumb="Catálogo"
         right={
           canManage ? (
-            <Button className="h-10 px-4" onClick={() => setCreating(true)}>
-              <Plus size={16} strokeWidth={2.5} className="mr-2" />
-              Nuevo producto
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                className="h-10 px-4"
+                onClick={handleSync}
+                disabled={syncMut.isPending}
+              >
+                <RefreshCw
+                  size={16}
+                  strokeWidth={2.5}
+                  className={`mr-2 ${syncMut.isPending ? 'animate-spin' : ''}`}
+                />
+                {syncMut.isPending ? 'Sincronizando…' : 'Sincronizar con Alegra'}
+              </Button>
+              <Button className="h-10 px-4" onClick={() => setCreating(true)}>
+                <Plus size={16} strokeWidth={2.5} className="mr-2" />
+                Nuevo producto
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -173,7 +208,59 @@ export function ProductosPage() {
           onCancel={close}
         />
       </Modal>
+
+      <Modal
+        open={syncResult !== null}
+        title="Sincronización con Alegra"
+        subtitle={syncResult?.ok ? 'Resultado de la importación' : 'No se pudo sincronizar'}
+        onClose={() => setSyncResult(null)}
+      >
+        {syncResult?.ok ? (
+          <div className="space-y-4">
+            <div className="flex gap-8">
+              <SyncStat
+                label="Clientes"
+                detail={`${syncResult.data.clientes.creados} nuevos · ${syncResult.data.clientes.actualizados} actualizados`}
+              />
+              <SyncStat
+                label="Productos"
+                detail={`${syncResult.data.productos.creados} nuevos · ${syncResult.data.productos.actualizados} actualizados`}
+              />
+            </div>
+            <ul className="space-y-1 rounded-lg border border-slate-200 bg-paper p-3 text-xs text-slate-600">
+              {syncResult.data.detalle.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <div className="flex justify-end">
+              <Button className="h-10 px-4" onClick={() => setSyncResult(null)}>
+                Listo
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {syncResult?.error}
+            </p>
+            <div className="flex justify-end">
+              <Button variant="ghost" className="h-10 px-4" onClick={() => setSyncResult(null)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
+  );
+}
+
+function SyncStat({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div>
+      <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-slate-400">{label}</p>
+      <p className="text-sm text-navy-900">{detail}</p>
+    </div>
   );
 }
 

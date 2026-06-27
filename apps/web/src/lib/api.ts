@@ -85,6 +85,21 @@ export const authApi = {
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }, false),
 };
 
+// ---- Sincronización Alegra (Gerente/Admin) ----
+
+export interface AlegraSyncSummary {
+  clientes: { creados: number; actualizados: number; omitidos: number; total: number };
+  productos: { creados: number; actualizados: number; total: number };
+  detalle: string[];
+}
+
+/** El endpoint responde 200 siempre (el proxy enmascara los 5xx): ok=true con datos, o ok=false con el error. */
+export type AlegraSyncResult = { ok: true; data: AlegraSyncSummary } | { ok: false; error: string };
+
+export const syncApi = {
+  alegra: () => request<AlegraSyncResult>('/sync/alegra', { method: 'POST' }, true),
+};
+
 // ---- Administración (solo Admin) ----
 
 export interface Sucursal {
