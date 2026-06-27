@@ -28,6 +28,13 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES: z.string().default('7d'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+
+  // Integración Alegra (Fase 1.5). Opcional: la app arranca sin estas; el
+  // cliente de Alegra falla con un mensaje claro si se intenta sincronizar
+  // sin email/token configurados.
+  ALEGRA_API_URL: z.string().url().default('https://api.alegra.com/api/v1'),
+  ALEGRA_API_EMAIL: z.string().optional(),
+  ALEGRA_API_TOKEN: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
