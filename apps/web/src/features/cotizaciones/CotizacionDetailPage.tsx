@@ -53,6 +53,15 @@ export function CotizacionDetailPage() {
   const bruto = Number(cot.subtotal) + Number(cot.descuentoTotal);
   const descuentoTotal = Number(cot.descuentoTotal);
   const rechazo = cot.aprobaciones.find((a) => a.decision === 'RECHAZAR');
+  const mailtoEnviar = cot.cliente.email
+    ? `mailto:${cot.cliente.email}?subject=${encodeURIComponent(
+        `Cotización ${cot.folio} — Motipreca`,
+      )}&body=${encodeURIComponent(
+        `Estimado cliente,\n\nAdjunto la cotización ${cot.folio} por un total de ${formatMoney(
+          cot.total,
+        )}, vigente hasta ${fmtDate(cot.vigenciaHasta)}.\n\nQuedamos a sus órdenes.\nMotipreca`,
+      )}`
+    : null;
 
   return (
     <>
@@ -108,6 +117,24 @@ export function CotizacionDetailPage() {
           {cot.estado === 'APROBADA' ? (
             <>
               <Button
+                variant="ghost"
+                className="h-9 px-4 text-xs"
+                onClick={() => navigate(`/cotizaciones/${id}/imprimir`)}
+              >
+                Imprimir / PDF
+              </Button>
+              {mailtoEnviar ? (
+                <Button
+                  variant="ghost"
+                  className="h-9 px-4 text-xs"
+                  onClick={() => {
+                    window.location.href = mailtoEnviar;
+                  }}
+                >
+                  Enviar
+                </Button>
+              ) : null}
+              <Button
                 className="h-9 px-4 text-xs"
                 disabled={pendiente}
                 onClick={() => estadoMut.mutate({ id, estado: 'COBRADA' })}
@@ -123,6 +150,15 @@ export function CotizacionDetailPage() {
                 Rechazar
               </Button>
             </>
+          ) : null}
+          {cot.estado === 'COBRADA' ? (
+            <Button
+              variant="ghost"
+              className="h-9 px-4 text-xs"
+              onClick={() => navigate(`/cotizaciones/${id}/imprimir`)}
+            >
+              Imprimir / PDF
+            </Button>
           ) : null}
         </div>
       </header>

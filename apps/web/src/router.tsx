@@ -7,6 +7,7 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { ClientesPage } from './features/clientes/ClientesPage';
 import { CotizacionBuilderPage } from './features/cotizaciones/CotizacionBuilderPage';
 import { CotizacionDetailPage } from './features/cotizaciones/CotizacionDetailPage';
+import { CotizacionPrintPage } from './features/cotizaciones/CotizacionPrintPage';
 import { CotizacionesPage } from './features/cotizaciones/CotizacionesPage';
 import { ProductosPage } from './features/productos/ProductosPage';
 import { ReglasAprobacionPage } from './features/admin/reglas/ReglasAprobacionPage';
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      { path: '/cotizaciones/:id/imprimir', element: <CotizacionPrintPage /> },
     ],
   },
   { path: '*', element: <NotFound /> },
