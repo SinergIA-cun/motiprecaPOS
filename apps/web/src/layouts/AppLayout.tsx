@@ -5,6 +5,7 @@ import {
   LogOut,
   Package,
   ShieldCheck,
+  Store,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -18,10 +19,18 @@ interface NavEntry {
   label: string;
   icon: LucideIcon;
   ready: boolean;
+  roles?: string[];
 }
 
 const NAV_OPERACION: NavEntry[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: true },
+  {
+    to: '/pos',
+    label: 'Punto de venta',
+    icon: Store,
+    ready: true,
+    roles: ['CAJERO', 'GERENTE', 'ADMINISTRADOR'],
+  },
   { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText, ready: true },
   { to: '/clientes', label: 'Clientes', icon: Users, ready: true },
   { to: '/productos', label: 'Productos', icon: Package, ready: true },
@@ -84,6 +93,9 @@ export function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.rol === 'ADMINISTRADOR';
+  const operacion = NAV_OPERACION.filter(
+    (e) => !e.roles || (user ? e.roles.includes(user.rol) : false),
+  );
 
   async function handleLogout() {
     await logout();
@@ -103,7 +115,7 @@ export function AppLayout() {
         </div>
 
         <nav className="flex-1 px-3 py-5">
-          <NavGroup title="Operación" items={NAV_OPERACION} />
+          <NavGroup title="Operación" items={operacion} />
           {isAdmin ? <NavGroup title="Administración" items={NAV_ADMIN} /> : null}
         </nav>
 

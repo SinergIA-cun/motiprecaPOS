@@ -62,6 +62,7 @@ model Sucursal {
   rangosFolios RangoFolio[]
   clientes     Cliente[]
   cotizaciones Cotizacion[]
+  ventas       Venta[]
 
   @@index([activa])
 }
@@ -89,6 +90,7 @@ model Usuario {
 
   cotizaciones Cotizacion[] @relation("asesor")
   aprobaciones Aprobacion[] @relation("aprobador")
+  ventas       Venta[]      @relation("cajero")
 
   @@index([email])
   @@index([sucursalId])
@@ -132,6 +134,7 @@ model Cliente {
   updatedAt DateTime @updatedAt
 
   cotizaciones Cotizacion[]
+  ventas       Venta[]
 
   @@index([sucursalId])
   @@index([activo])
@@ -166,7 +169,8 @@ model Producto {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items ItemCotizacion[]
+  items      ItemCotizacion[]
+  itemsVenta ItemVenta[]
 
   @@index([codigo])
   @@index([activo])
@@ -225,6 +229,7 @@ model Cotizacion {
   items        ItemCotizacion[]
   aprobaciones Aprobacion[]
   historial    HistorialCotizacion[]
+  venta        Venta?
 
   @@index([sucursalId])
   @@index([asesorId])
@@ -315,4 +320,78 @@ model HistorialCotizacion {
 
   @@index([cotizacionId])
   @@index([createdAt])
+}
+
+// ===========================================================================
+// POS — Ventas de mostrador (Fase 1: online, cobro básico, ticket)
+// ===========================================================================
+
+model Venta {
+  id    String @id @default(cuid())
+  folio String @unique // "CUN-VTA-000001"
+
+  sucursalId String
+  sucursal   Sucursal @relation(fields: [sucursalId], references: [id])
+  cajeroId   String
+  cajero     Usuario  @relation("cajero", fields: [cajeroId], references: [id])
+  clienteId  String?
+  cliente    Cliente? @relation(fields: [clienteId], references: [id])
+
+  // Si la venta proviene de una cotización (conversión). En POS directo: null.
+  cotizacionId String?     @unique
+  cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
+
+  subtotal       Decimal @default(0) @db.Decimal(12, 2)
+  descuentoTotal Decimal @default(0) @db.Decimal(12, 2)
+  iva            Decimal @default(0) @db.Decimal(12, 2)
+  total          Decimal @default(0) @db.Decimal(12, 2)
+
+  esFacturada Boolean @default(false)
+  esStandby   Boolean @default(false) // efectivo sin factura (módulo hidden, fase posterior)
+
+  createdAt DateTime @default(now())
+
+  items ItemVenta[]
+  pagos Pago[]
+
+  @@index([sucursalId])
+  @@index([cajeroId])
+  @@index([createdAt])
+}
+
+model ItemVenta {
+  id         String   @id @default(cuid())
+  ventaId    String
+  venta      Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  productoId String
+  producto   Producto @relation(fields: [productoId], references: [id])
+
+  descripcion    String // snapshot del nombre al momento
+  cantidad       Decimal @db.Decimal(10, 2)
+  precioUnitario Decimal @db.Decimal(12, 2)
+  descuentoPct   Decimal @default(0) @db.Decimal(5, 2)
+  importe        Decimal @db.Decimal(12, 2)
+  orden          Int     @default(0)
+
+  @@index([ventaId])
+}
+
+model Pago {
+  id         String     @id @default(cuid())
+  ventaId    String
+  venta      Venta      @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  monto      Decimal    @db.Decimal(12, 2)
+  metodoPago MetodoPago
+  referencia String? // últimos 4 de tarjeta, folio de transferencia, etc.
+  createdAt  DateTime   @default(now())
+
+  @@index([ventaId])
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA_DEBITO
+  TARJETA_CREDITO
+  MIXTO
 }

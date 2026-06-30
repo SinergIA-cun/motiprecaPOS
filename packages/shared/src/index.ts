@@ -8,4 +8,5 @@ export * from './schemas/cotizacion.js';
 export * from './schemas/producto.js';
 export * from './schemas/sucursal.js';
 export * from './schemas/usuario.js';
+export * from './schemas/venta.js';
 export * from './types/user.js';

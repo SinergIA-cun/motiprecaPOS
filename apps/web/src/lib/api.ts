@@ -5,13 +5,17 @@ import type {
   CreateProductoInput,
   CreateSucursalInput,
   CreateUsuarioInput,
+  CreateVentaInput,
   EstadoCotizacion,
+  MetodoPago,
   Rol,
   UpdateClienteInput,
   UpdateProductoInput,
   UpdateSucursalInput,
   UpdateUsuarioInput,
 } from '@motipreca/shared';
+
+export type { MetodoPago } from '@motipreca/shared';
 
 export type { EstadoCotizacion } from '@motipreca/shared';
 import { useAuthStore } from '../stores/auth';
@@ -362,6 +366,51 @@ export const configApi = {
     request<{ data: ReglaAprobacion }>(
       '/config/aprobacion',
       { method: 'PUT', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+};
+
+// ---- Ventas (POS) — montos llegan como string (Decimal serializado) ----
+
+export interface ItemVenta {
+  id: string;
+  descripcion: string;
+  cantidad: string;
+  precioUnitario: string;
+  descuentoPct: string;
+  importe: string;
+  orden: number;
+}
+
+export interface Pago {
+  id: string;
+  metodoPago: MetodoPago;
+  monto: string;
+  referencia: string | null;
+}
+
+export interface VentaDetalle {
+  id: string;
+  folio: string;
+  subtotal: string;
+  descuentoTotal: string;
+  iva: string;
+  total: string;
+  createdAt: string;
+  items: ItemVenta[];
+  pagos: Pago[];
+  cliente: { nombre: string; rfc?: string | null } | null;
+  sucursal: { nombre: string; prefijoFolio: string };
+  cajero: { nombre: string; iniciales: string };
+}
+
+export const ventasApi = {
+  get: (id: string) =>
+    request<{ data: VentaDetalle }>(`/ventas/${id}`, {}, true).then((r) => r.data),
+  create: (input: CreateVentaInput) =>
+    request<{ data: VentaDetalle }>(
+      '/ventas',
+      { method: 'POST', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),
 };

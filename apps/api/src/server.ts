@@ -16,6 +16,7 @@ import { healthRoutes } from './routes/health.js';
 import { productoRoutes } from './routes/productos.js';
 import { sucursalRoutes } from './routes/sucursales.js';
 import { syncRoutes } from './routes/sync.js';
+import { ventaRoutes } from './routes/ventas.js';
 import { usuarioRoutes } from './routes/usuarios.js';
 
 const isProd = env.NODE_ENV === 'production';
@@ -93,6 +94,7 @@ await app.register(clienteRoutes);
 await app.register(productoRoutes);
 await app.register(cotizacionRoutes);
 await app.register(configRoutes);
+await app.register(ventaRoutes);
 await app.register(syncRoutes);
 
 // ---- Graceful shutdown (regla #57) ----
