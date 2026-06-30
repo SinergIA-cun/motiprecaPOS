@@ -114,6 +114,24 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 
+// Asegura la regla de aprobación por defecto (nivel 1 = Administrador) en
+// cualquier entorno: la migración crea la tabla pero no siembra la fila.
+try {
+  await prisma.nivelAprobacion.upsert({
+    where: { nivel: 1 },
+    update: {},
+    create: {
+      nivel: 1,
+      nombre: 'Administrador',
+      rolAprobador: 'ADMINISTRADOR',
+      descuentoMinimo: 15,
+      montoMinimo: 50_000,
+    },
+  });
+} catch (err) {
+  app.log.error({ err }, 'No se pudo asegurar la regla de aprobación por defecto');
+}
+
 try {
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
 } catch (err) {
