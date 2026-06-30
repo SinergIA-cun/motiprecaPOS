@@ -7,11 +7,12 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
-import { ApiError } from '../../lib/api';
+import { ApiError, type Producto, type Unidad } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSucursales } from '../admin/hooks';
 import { useClientes } from '../clientes/hooks';
-import { useProductos } from '../productos/hooks';
+import { ProductoPicker } from './ProductoPicker';
 import { useCreateCotizacion } from './hooks';
 
 const IVA_RATE = 0.16;
@@ -28,13 +29,13 @@ interface Row {
   cantidad: string;
   precioUnitario: string;
   descuentoPct: string;
+  unidad: Unidad;
 }
 
 export function CotizacionBuilderPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: clientes } = useClientes({ activo: true });
-  const { data: productos } = useProductos({ activo: true });
   const { data: sucursales } = useSucursales();
   const createMut = useCreateCotizacion();
 
@@ -43,14 +44,11 @@ export function CotizacionBuilderPage() {
   const [vigencia, setVigencia] = useState('15');
   const [observaciones, setObservaciones] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
-  const [picker, setPicker] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   const sucursalId = sucursalSel || user?.sucursalId || sucursales?.[0]?.id || '';
 
-  function addProducto(id: string) {
-    const p = productos?.find((x) => x.id === id);
-    if (!p) return;
+  function addProducto(p: Producto) {
     setRows((r) => [
       ...r,
       {
@@ -60,9 +58,9 @@ export function CotizacionBuilderPage() {
         cantidad: '1',
         precioUnitario: p.precioBase,
         descuentoPct: '0',
+        unidad: p.unidad,
       },
     ]);
-    setPicker('');
   }
 
   function updateRow(key: string, field: keyof Row, value: string) {
@@ -76,9 +74,11 @@ export function CotizacionBuilderPage() {
     ...r,
     importe: round2(num(r.cantidad) * num(r.precioUnitario) * (1 - num(r.descuentoPct) / 100)),
   }));
-  const subtotal = round2(lineas.reduce((s, l) => s + l.importe, 0));
-  const iva = round2(subtotal * IVA_RATE);
-  const total = round2(subtotal + iva);
+  const bruto = round2(lineas.reduce((s, l) => s + num(l.cantidad) * num(l.precioUnitario), 0));
+  const subtotalNeto = round2(lineas.reduce((s, l) => s + l.importe, 0));
+  const descuentoTotal = round2(bruto - subtotalNeto);
+  const iva = round2(subtotalNeto * IVA_RATE);
+  const total = round2(subtotalNeto + iva);
 
   const apiError = createMut.error instanceof ApiError ? createMut.error.message : undefined;
 
@@ -175,19 +175,7 @@ export function CotizacionBuilderPage() {
           {/* Partidas */}
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-200 bg-paper px-5 py-3">
-              <Select
-                aria-label="Agregar producto"
-                className="h-10 max-w-md text-sm"
-                value={picker}
-                onChange={(e) => addProducto(e.target.value)}
-              >
-                <option value="">+ Agregar producto…</option>
-                {productos?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.codigo} · {p.nombre} ({formatMoney(p.precioBase)})
-                  </option>
-                ))}
-              </Select>
+              <ProductoPicker onSelect={addProducto} />
             </div>
 
             <table className="w-full border-collapse text-left text-sm">
@@ -196,13 +184,13 @@ export function CotizacionBuilderPage() {
                   <th className="px-5 py-2.5 font-mono text-[0.6rem] uppercase tracking-[0.14em]">
                     Producto
                   </th>
-                  <th className="w-24 px-3 py-2.5 text-right font-mono text-[0.6rem] uppercase tracking-[0.14em]">
+                  <th className="w-36 px-3 py-2.5 text-right font-mono text-[0.6rem] uppercase tracking-[0.14em]">
                     Cantidad
                   </th>
                   <th className="w-32 px-3 py-2.5 text-right font-mono text-[0.6rem] uppercase tracking-[0.14em]">
                     P. unitario
                   </th>
-                  <th className="w-20 px-3 py-2.5 text-right font-mono text-[0.6rem] uppercase tracking-[0.14em]">
+                  <th className="w-24 px-3 py-2.5 text-right font-mono text-[0.6rem] uppercase tracking-[0.14em]">
                     Desc %
                   </th>
                   <th className="w-32 px-3 py-2.5 text-right font-mono text-[0.6rem] uppercase tracking-[0.14em]">
@@ -225,15 +213,20 @@ export function CotizacionBuilderPage() {
                         <span className="font-medium text-navy-900">{l.descripcion}</span>
                       </td>
                       <td className="px-3 py-2.5">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          aria-label="Cantidad"
-                          className="h-9 text-right font-mono text-sm"
-                          value={l.cantidad}
-                          onChange={(e) => updateRow(l.key, 'cantidad', e.target.value)}
-                        />
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            aria-label="Cantidad"
+                            className="h-9 w-20 text-right font-mono text-sm"
+                            value={l.cantidad}
+                            onChange={(e) => updateRow(l.key, 'cantidad', e.target.value)}
+                          />
+                          <span className="w-7 shrink-0 font-mono text-[0.65rem] text-slate-400">
+                            {UNIDAD_LABEL[l.unidad]}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-3 py-2.5">
                         <Input
@@ -247,16 +240,19 @@ export function CotizacionBuilderPage() {
                         />
                       </td>
                       <td className="px-3 py-2.5">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="1"
-                          aria-label="Descuento"
-                          className="h-9 text-right font-mono text-sm"
-                          value={l.descuentoPct}
-                          onChange={(e) => updateRow(l.key, 'descuentoPct', e.target.value)}
-                        />
+                        <div className="flex items-center justify-end gap-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            aria-label="Descuento"
+                            className="h-9 w-14 text-right font-mono text-sm"
+                            value={l.descuentoPct}
+                            onChange={(e) => updateRow(l.key, 'descuentoPct', e.target.value)}
+                          />
+                          <span className="font-mono text-[0.65rem] text-slate-400">%</span>
+                        </div>
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <span className="font-mono text-sm text-navy-800">
@@ -302,8 +298,14 @@ export function CotizacionBuilderPage() {
               <dl className="space-y-2 font-mono text-sm">
                 <div className="flex justify-between">
                   <dt className="text-slate-500">Subtotal</dt>
-                  <dd className="text-navy-800">{formatMoney(subtotal)}</dd>
+                  <dd className="text-navy-800">{formatMoney(bruto)}</dd>
                 </div>
+                {descuentoTotal > 0 ? (
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500">Descuento</dt>
+                    <dd className="text-red-600">−{formatMoney(descuentoTotal)}</dd>
+                  </div>
+                ) : null}
                 <div className="flex justify-between">
                   <dt className="text-slate-500">IVA (16%)</dt>
                   <dd className="text-navy-800">{formatMoney(iva)}</dd>

@@ -12,23 +12,12 @@ import {
   type AlegraSyncResult,
   type Producto,
   type ProductosFilter,
-  type Unidad,
 } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSyncAlegra } from '../sync/hooks';
 import { ProductoForm } from './ProductoForm';
 import { useCreateProducto, useProductos, useUpdateProducto } from './hooks';
-
-const UNIDAD_LABEL: Record<Unidad, string> = {
-  PZA: 'pza',
-  M2: 'm²',
-  ML: 'ml',
-  M3: 'm³',
-  KG: 'kg',
-  TON: 'ton',
-  LT: 'lt',
-  JGO: 'jgo',
-};
 
 export function ProductosPage() {
   const { user } = useAuth();
