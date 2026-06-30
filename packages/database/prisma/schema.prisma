@@ -42,52 +42,53 @@ enum TipoDocumento {
 // ===========================================================================
 
 model Sucursal {
-  id              String     @id @default(cuid())
-  nombre          String     @unique
-  prefijoFolio    String     @unique // "CUN", "PDC", "MID"
+  id              String  @id @default(cuid())
+  nombre          String  @unique
+  prefijoFolio    String  @unique // "CUN", "PDC", "MID"
   direccion       String
   telefono        String? // pendiente de confirmar por sucursal
   email           String?
   servidorLocalIp String? // POS offline (Fase 2)
-  activa          Boolean    @default(true)
+  activa          Boolean @default(true)
 
   // Integración Alegra (Fase 1.5) — mapea a bodega
-  alegraBodegaId  String?    @unique
-  estadoSync      EstadoSync @default(PENDIENTE)
+  alegraBodegaId String?    @unique
+  estadoSync     EstadoSync @default(PENDIENTE)
 
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  usuarios        Usuario[]
-  rangosFolios    RangoFolio[]
-  clientes        Cliente[]
-  cotizaciones    Cotizacion[]
+  usuarios     Usuario[]
+  rangosFolios RangoFolio[]
+  clientes     Cliente[]
+  cotizaciones Cotizacion[]
 
   @@index([activa])
 }
 
 model Usuario {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  passwordHash  String
-  nombre        String
-  telefono      String?
-  rol           Rol
-  iniciales     String // para folios (ej. "RJ")
-  sucursalId    String?
-  sucursal      Sucursal? @relation(fields: [sucursalId], references: [id])
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  nombre       String
+  telefono     String?
+  rol          Rol
+  iniciales    String // para folios (ej. "RJ")
+  sucursalId   String?
+  sucursal     Sucursal? @relation(fields: [sucursalId], references: [id])
 
   // 2FA (TOTP) — obligatorio para Administrador
-  has2FA        Boolean   @default(false)
-  totpSecret    String?
+  has2FA     Boolean @default(false)
+  totpSecret String?
 
   activo        Boolean   @default(true)
   ultimoLoginAt DateTime?
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  cotizaciones  Cotizacion[] @relation("asesor")
+  cotizaciones Cotizacion[] @relation("asesor")
+  aprobaciones Aprobacion[] @relation("aprobador")
 
   @@index([email])
   @@index([sucursalId])
@@ -127,8 +128,8 @@ model Cliente {
   alegraId   String?    @unique
   estadoSync EstadoSync @default(PENDIENTE)
 
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   cotizaciones Cotizacion[]
 
@@ -159,13 +160,13 @@ model Producto {
   activo       Boolean      @default(true)
 
   // Integración Alegra (Fase 1.5)
-  alegraId     String?      @unique
-  estadoSync   EstadoSync   @default(PENDIENTE)
+  alegraId   String?    @unique
+  estadoSync EstadoSync @default(PENDIENTE)
 
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  items      ItemCotizacion[]
+  items ItemCotizacion[]
 
   @@index([codigo])
   @@index([activo])
@@ -193,31 +194,37 @@ enum TipoProducto {
 // ===========================================================================
 
 model Cotizacion {
-  id             String           @id @default(cuid())
-  folio          String           @unique // "CUN-COT-000001"
+  id    String @id @default(cuid())
+  folio String @unique // "CUN-COT-000001"
 
-  sucursalId     String
-  sucursal       Sucursal         @relation(fields: [sucursalId], references: [id])
-  asesorId       String
-  asesor         Usuario          @relation("asesor", fields: [asesorId], references: [id])
-  clienteId      String
-  cliente        Cliente          @relation(fields: [clienteId], references: [id])
+  sucursalId String
+  sucursal   Sucursal @relation(fields: [sucursalId], references: [id])
+  asesorId   String
+  asesor     Usuario  @relation("asesor", fields: [asesorId], references: [id])
+  clienteId  String
+  cliente    Cliente  @relation(fields: [clienteId], references: [id])
 
-  estado         EstadoCotizacion @default(ABIERTA)
+  estado EstadoCotizacion @default(ABIERTA)
 
-  subtotal       Decimal          @default(0) @db.Decimal(12, 2)
-  descuentoTotal Decimal          @default(0) @db.Decimal(12, 2)
-  iva            Decimal          @default(0) @db.Decimal(12, 2)
-  total          Decimal          @default(0) @db.Decimal(12, 2)
+  subtotal       Decimal @default(0) @db.Decimal(12, 2)
+  descuentoTotal Decimal @default(0) @db.Decimal(12, 2)
+  iva            Decimal @default(0) @db.Decimal(12, 2)
+  total          Decimal @default(0) @db.Decimal(12, 2)
 
-  vigencia       Int              @default(15) // días
-  vigenciaHasta  DateTime
-  observaciones  String?
+  // Aprobación (Fase 1: 1 nivel admin + reglas OR configurables)
+  requiereAprobacion Boolean @default(false)
+  motivoAprobacion   String? // "descuento", "monto", "descuento y monto"
 
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  vigencia      Int      @default(15) // días
+  vigenciaHasta DateTime
+  observaciones String?
 
-  items          ItemCotizacion[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items        ItemCotizacion[]
+  aprobaciones Aprobacion[]
+  historial    HistorialCotizacion[]
 
   @@index([sucursalId])
   @@index([asesorId])
@@ -228,26 +235,84 @@ model Cotizacion {
 
 enum EstadoCotizacion {
   ABIERTA
+  PENDIENTE_APROBACION_INTERNA
   APROBADA
+  RECHAZADA_INTERNA
   RECHAZADA
   COBRADA
   EXPIRADA
   ELIMINADA
 }
 
+enum Decision {
+  APROBAR
+  RECHAZAR
+}
+
 model ItemCotizacion {
-  id             String     @id @default(cuid())
-  cotizacionId   String
-  cotizacion     Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
-  productoId     String
-  producto       Producto   @relation(fields: [productoId], references: [id])
+  id           String     @id @default(cuid())
+  cotizacionId String
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  productoId   String
+  producto     Producto   @relation(fields: [productoId], references: [id])
 
   descripcion    String // snapshot del nombre del producto al momento
-  cantidad       Decimal    @db.Decimal(10, 2)
-  precioUnitario Decimal    @db.Decimal(12, 2)
-  descuentoPct   Decimal    @default(0) @db.Decimal(5, 2)
-  importe        Decimal    @db.Decimal(12, 2)
-  orden          Int        @default(0)
+  cantidad       Decimal @db.Decimal(10, 2)
+  precioUnitario Decimal @db.Decimal(12, 2)
+  descuentoPct   Decimal @default(0) @db.Decimal(5, 2)
+  importe        Decimal @db.Decimal(12, 2)
+  orden          Int     @default(0)
 
   @@index([cotizacionId])
+}
+
+// ===========================================================================
+// Aprobaciones (Fase 1: 1 nivel = Administrador, reglas OR configurables)
+// ===========================================================================
+
+/// Reglas de aprobación configurables por el Administrador. Fase 1 usa un solo
+/// nivel (nivel 1 = Administrador); los niveles 2-3 escalonados llegan en Fase 2.
+model NivelAprobacion {
+  id           String @id @default(cuid())
+  nivel        Int    @unique // 1, 2, 3
+  nombre       String // "Administrador", "Gerente", "Jefe"
+  rolAprobador Rol
+
+  // Disparadores OR: si la cotización alcanza CUALQUIERA, requiere aprobación.
+  descuentoMinimo Decimal? @db.Decimal(5, 2) // % de descuento que dispara
+  montoMinimo     Decimal? @db.Decimal(12, 2) // total que dispara
+
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Decisión de aprobación/rechazo de una cotización (auditoría de quién decidió).
+model Aprobacion {
+  id           String     @id @default(cuid())
+  cotizacionId String
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  nivel        Int        @default(1)
+  aprobadorId  String
+  aprobador    Usuario    @relation("aprobador", fields: [aprobadorId], references: [id])
+  decision     Decision
+  motivo       String?
+  createdAt    DateTime   @default(now())
+
+  @@index([cotizacionId])
+}
+
+/// Bitácora de cambios de estado de una cotización (auditoría).
+model HistorialCotizacion {
+  id             String            @id @default(cuid())
+  cotizacionId   String
+  cotizacion     Cotizacion        @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  usuarioId      String? // id del usuario que provocó el cambio (sin FK, es bitácora)
+  estadoAnterior EstadoCotizacion?
+  estadoNuevo    EstadoCotizacion
+  comentario     String?
+  createdAt      DateTime          @default(now())
+
+  @@index([cotizacionId])
+  @@index([createdAt])
 }

@@ -2,9 +2,13 @@ import { z } from 'zod';
 
 const emptyToUndefined = (v: unknown): unknown => (v === '' ? undefined : v);
 
+const emptyToNull = (v: unknown): unknown => (v === '' || v === undefined ? null : v);
+
 export const estadoCotizacionSchema = z.enum([
   'ABIERTA',
+  'PENDIENTE_APROBACION_INTERNA',
   'APROBADA',
+  'RECHAZADA_INTERNA',
   'RECHAZADA',
   'COBRADA',
   'EXPIRADA',
@@ -35,6 +39,29 @@ export const updateEstadoCotizacionSchema = z.object({
   estado: estadoCotizacionSchema,
 });
 
+/** Motivo opcional al rechazar una cotización en aprobación interna. */
+export const rechazarCotizacionSchema = z.object({
+  motivo: z.preprocess(
+    emptyToUndefined,
+    z.string().trim().max(500, 'Motivo demasiado largo').optional(),
+  ),
+});
+
+/** Configuración de la regla de aprobación (Fase 1: nivel 1 = Administrador).
+ *  `null` en un umbral = ese disparador está desactivado. */
+export const updateReglaAprobacionSchema = z.object({
+  descuentoMinimo: z.preprocess(
+    emptyToNull,
+    z.coerce.number().min(0, 'Mínimo 0%').max(100, 'Máximo 100%').nullable(),
+  ),
+  montoMinimo: z.preprocess(
+    emptyToNull,
+    z.coerce.number().min(0, 'No puede ser negativo').nullable(),
+  ),
+});
+
 export type ItemCotizacionInput = z.infer<typeof itemCotizacionSchema>;
 export type CreateCotizacionInput = z.infer<typeof createCotizacionSchema>;
 export type EstadoCotizacion = z.infer<typeof estadoCotizacionSchema>;
+export type RechazarCotizacionInput = z.infer<typeof rechazarCotizacionSchema>;
+export type UpdateReglaAprobacionInput = z.infer<typeof updateReglaAprobacionSchema>;

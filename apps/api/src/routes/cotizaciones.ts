@@ -2,13 +2,26 @@ import { Prisma, prisma } from '@motipreca/database';
 import {
   createCotizacionSchema,
   estadoCotizacionSchema,
+  rechazarCotizacionSchema,
   updateEstadoCotizacionSchema,
 } from '@motipreca/shared';
 import type { FastifyInstance } from 'fastify';
+import { descuentoPctEfectivo, evaluarAprobacion } from '../lib/aprobacion.js';
 import { conflict, notFound, unauthorized, validationError } from '../lib/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
+import { authorize } from '../middleware/authorize.js';
 
 const auth = { preHandler: [authenticate] };
+const adminOnly = { preHandler: [authenticate, authorize('ADMINISTRADOR')] };
+
+/** Regla de aprobación de Fase 1 (nivel 1 = Administrador). */
+async function reglaNivel1() {
+  const nivel = await prisma.nivelAprobacion.findUnique({ where: { nivel: 1 } });
+  return {
+    descuentoMinimo: nivel?.descuentoMinimo != null ? Number(nivel.descuentoMinimo) : null,
+    montoMinimo: nivel?.montoMinimo != null ? Number(nivel.montoMinimo) : null,
+  };
+}
 const IVA_RATE = 0.16;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -47,6 +60,10 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
         cliente: true,
         sucursal: { select: { id: true, nombre: true, prefijoFolio: true } },
         asesor: { select: { nombre: true, iniciales: true } },
+        aprobaciones: {
+          orderBy: { createdAt: 'desc' },
+          include: { aprobador: { select: { nombre: true, iniciales: true } } },
+        },
       },
     });
     if (!cotizacion) throw notFound('Cotización no encontrada');
@@ -173,6 +190,169 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
     const cotizacion = await prisma.cotizacion.update({
       where: { id },
       data: { estado: parsed.data.estado },
+    });
+    return { data: cotizacion };
+  });
+
+  // ---- POST /cotizaciones/:id/enviar-aprobacion ----
+  // Evalúa reglas OR: si dispara → PENDIENTE_APROBACION_INTERNA; si no → auto-aprueba.
+  app.post('/cotizaciones/:id/enviar-aprobacion', auth, async (request) => {
+    const { id } = request.params as { id: string };
+    const usuarioId = request.user?.id;
+    const cot = await prisma.cotizacion.findUnique({
+      where: { id },
+      select: { id: true, estado: true, subtotal: true, descuentoTotal: true, total: true },
+    });
+    if (!cot) throw notFound('Cotización no encontrada');
+    if (cot.estado !== 'ABIERTA') {
+      throw conflict('Solo una cotización abierta se puede mandar a aprobación');
+    }
+
+    const regla = await reglaNivel1();
+    const evaluacion = evaluarAprobacion(
+      {
+        total: Number(cot.total),
+        descuentoPctEfectivo: descuentoPctEfectivo(
+          Number(cot.subtotal),
+          Number(cot.descuentoTotal),
+        ),
+      },
+      regla,
+    );
+    const nuevoEstado = evaluacion.requiere ? 'PENDIENTE_APROBACION_INTERNA' : 'APROBADA';
+
+    const cotizacion = await prisma.$transaction(async (tx) => {
+      const updated = await tx.cotizacion.update({
+        where: { id },
+        data: {
+          estado: nuevoEstado,
+          requiereAprobacion: evaluacion.requiere,
+          motivoAprobacion: evaluacion.motivo,
+        },
+      });
+      await tx.historialCotizacion.create({
+        data: {
+          cotizacionId: id,
+          usuarioId,
+          estadoAnterior: 'ABIERTA',
+          estadoNuevo: nuevoEstado,
+          comentario: evaluacion.requiere
+            ? `Requiere aprobación por ${evaluacion.motivo}`
+            : 'Auto-aprobada (no alcanza umbrales)',
+        },
+      });
+      return updated;
+    });
+    return { data: cotizacion };
+  });
+
+  // ---- POST /cotizaciones/:id/aprobar (Administrador) ----
+  app.post('/cotizaciones/:id/aprobar', adminOnly, async (request) => {
+    const { id } = request.params as { id: string };
+    const aprobadorId = request.user?.id;
+    if (!aprobadorId) throw unauthorized();
+    const cot = await prisma.cotizacion.findUnique({
+      where: { id },
+      select: { id: true, estado: true },
+    });
+    if (!cot) throw notFound('Cotización no encontrada');
+    if (cot.estado !== 'PENDIENTE_APROBACION_INTERNA') {
+      throw conflict('La cotización no está pendiente de aprobación');
+    }
+
+    const cotizacion = await prisma.$transaction(async (tx) => {
+      const updated = await tx.cotizacion.update({ where: { id }, data: { estado: 'APROBADA' } });
+      await tx.aprobacion.create({
+        data: { cotizacionId: id, nivel: 1, aprobadorId, decision: 'APROBAR' },
+      });
+      await tx.historialCotizacion.create({
+        data: {
+          cotizacionId: id,
+          usuarioId: aprobadorId,
+          estadoAnterior: 'PENDIENTE_APROBACION_INTERNA',
+          estadoNuevo: 'APROBADA',
+          comentario: 'Aprobada',
+        },
+      });
+      return updated;
+    });
+    return { data: cotizacion };
+  });
+
+  // ---- POST /cotizaciones/:id/rechazar (Administrador) ----
+  app.post('/cotizaciones/:id/rechazar', adminOnly, async (request) => {
+    const { id } = request.params as { id: string };
+    const aprobadorId = request.user?.id;
+    if (!aprobadorId) throw unauthorized();
+    const parsed = rechazarCotizacionSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw validationError('Datos inválidos', parsed.error.flatten().fieldErrors);
+    }
+    const cot = await prisma.cotizacion.findUnique({
+      where: { id },
+      select: { id: true, estado: true },
+    });
+    if (!cot) throw notFound('Cotización no encontrada');
+    if (cot.estado !== 'PENDIENTE_APROBACION_INTERNA') {
+      throw conflict('La cotización no está pendiente de aprobación');
+    }
+
+    const cotizacion = await prisma.$transaction(async (tx) => {
+      const updated = await tx.cotizacion.update({
+        where: { id },
+        data: { estado: 'RECHAZADA_INTERNA' },
+      });
+      await tx.aprobacion.create({
+        data: {
+          cotizacionId: id,
+          nivel: 1,
+          aprobadorId,
+          decision: 'RECHAZAR',
+          motivo: parsed.data.motivo ?? null,
+        },
+      });
+      await tx.historialCotizacion.create({
+        data: {
+          cotizacionId: id,
+          usuarioId: aprobadorId,
+          estadoAnterior: 'PENDIENTE_APROBACION_INTERNA',
+          estadoNuevo: 'RECHAZADA_INTERNA',
+          comentario: parsed.data.motivo ? `Rechazada: ${parsed.data.motivo}` : 'Rechazada',
+        },
+      });
+      return updated;
+    });
+    return { data: cotizacion };
+  });
+
+  // ---- POST /cotizaciones/:id/reabrir ----  RECHAZADA_INTERNA → ABIERTA (para corregir).
+  app.post('/cotizaciones/:id/reabrir', auth, async (request) => {
+    const { id } = request.params as { id: string };
+    const usuarioId = request.user?.id;
+    const cot = await prisma.cotizacion.findUnique({
+      where: { id },
+      select: { id: true, estado: true },
+    });
+    if (!cot) throw notFound('Cotización no encontrada');
+    if (cot.estado !== 'RECHAZADA_INTERNA') {
+      throw conflict('Solo una cotización rechazada internamente se puede reabrir');
+    }
+
+    const cotizacion = await prisma.$transaction(async (tx) => {
+      const updated = await tx.cotizacion.update({
+        where: { id },
+        data: { estado: 'ABIERTA', requiereAprobacion: false, motivoAprobacion: null },
+      });
+      await tx.historialCotizacion.create({
+        data: {
+          cotizacionId: id,
+          usuarioId,
+          estadoAnterior: 'RECHAZADA_INTERNA',
+          estadoNuevo: 'ABIERTA',
+          comentario: 'Reabierta para edición',
+        },
+      });
+      return updated;
     });
     return { data: cotizacion };
   });

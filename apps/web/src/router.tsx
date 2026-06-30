@@ -9,6 +9,7 @@ import { CotizacionBuilderPage } from './features/cotizaciones/CotizacionBuilder
 import { CotizacionDetailPage } from './features/cotizaciones/CotizacionDetailPage';
 import { CotizacionesPage } from './features/cotizaciones/CotizacionesPage';
 import { ProductosPage } from './features/productos/ProductosPage';
+import { ReglasAprobacionPage } from './features/admin/reglas/ReglasAprobacionPage';
 import { SucursalesPage } from './features/admin/sucursales/SucursalesPage';
 import { UsuariosPage } from './features/admin/usuarios/UsuariosPage';
 import { AppLayout } from './layouts/AppLayout';
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
             children: [
               { path: '/admin/sucursales', element: <SucursalesPage /> },
               { path: '/admin/usuarios', element: <UsuariosPage /> },
+              { path: '/admin/reglas-aprobacion', element: <ReglasAprobacionPage /> },
             ],
           },
         ],

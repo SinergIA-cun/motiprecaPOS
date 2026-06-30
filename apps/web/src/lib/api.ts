@@ -250,6 +250,15 @@ export interface ItemCotizacion {
   orden: number;
 }
 
+export interface AprobacionDetalle {
+  id: string;
+  nivel: number;
+  decision: 'APROBAR' | 'RECHAZAR';
+  motivo: string | null;
+  createdAt: string;
+  aprobador: { nombre: string; iniciales: string };
+}
+
 export interface CotizacionDetail {
   id: string;
   folio: string;
@@ -258,6 +267,8 @@ export interface CotizacionDetail {
   descuentoTotal: string;
   iva: string;
   total: string;
+  requiereAprobacion: boolean;
+  motivoAprobacion: string | null;
   vigencia: number;
   vigenciaHasta: string;
   observaciones: string | null;
@@ -272,6 +283,7 @@ export interface CotizacionDetail {
   };
   sucursal: { id: string; nombre: string; prefijoFolio: string };
   asesor: { nombre: string; iniciales: string };
+  aprobaciones: AprobacionDetalle[];
 }
 
 export interface CotizacionesFilter {
@@ -303,6 +315,53 @@ export const cotizacionesApi = {
     request<{ data: CotizacionDetail }>(
       `/cotizaciones/${id}/estado`,
       { method: 'PATCH', body: JSON.stringify({ estado }) },
+      true,
+    ).then((r) => r.data),
+  enviarAprobacion: (id: string) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}/enviar-aprobacion`,
+      { method: 'POST' },
+      true,
+    ).then((r) => r.data),
+  aprobar: (id: string) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}/aprobar`,
+      { method: 'POST' },
+      true,
+    ).then((r) => r.data),
+  rechazar: (id: string, motivo?: string) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}/rechazar`,
+      { method: 'POST', body: JSON.stringify({ motivo: motivo ?? '' }) },
+      true,
+    ).then((r) => r.data),
+  reabrir: (id: string) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}/reabrir`,
+      { method: 'POST' },
+      true,
+    ).then((r) => r.data),
+};
+
+// ---- Configuración (Administrador) ----
+
+export interface ReglaAprobacion {
+  id: string;
+  nivel: number;
+  nombre: string;
+  rolAprobador: Rol;
+  descuentoMinimo: string | null; // Decimal serializado; null = disparador off
+  montoMinimo: string | null;
+  activo: boolean;
+}
+
+export const configApi = {
+  getReglaAprobacion: () =>
+    request<{ data: ReglaAprobacion }>('/config/aprobacion', {}, true).then((r) => r.data),
+  updateReglaAprobacion: (input: { descuentoMinimo: number | null; montoMinimo: number | null }) =>
+    request<{ data: ReglaAprobacion }>(
+      '/config/aprobacion',
+      { method: 'PUT', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),
 };

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  ShieldCheck,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ const NAV_OPERACION: NavEntry[] = [
 const NAV_ADMIN: NavEntry[] = [
   { to: '/admin/sucursales', label: 'Sucursales', icon: Building2, ready: true },
   { to: '/admin/usuarios', label: 'Usuarios', icon: UserCog, ready: true },
+  { to: '/admin/reglas-aprobacion', label: 'Reglas de aprobación', icon: ShieldCheck, ready: true },
 ];
 
 function NavItem({ item }: { item: NavEntry }) {

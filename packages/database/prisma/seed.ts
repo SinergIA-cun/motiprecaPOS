@@ -122,8 +122,22 @@ async function main(): Promise<void> {
     });
   }
 
+  // Regla de aprobación Fase 1 (nivel 1 = Administrador). Umbrales OR editables
+  // desde Admin → Reglas de aprobación. `update: {}` para no pisar lo configurado.
+  await prisma.nivelAprobacion.upsert({
+    where: { nivel: 1 },
+    update: {},
+    create: {
+      nivel: 1,
+      nombre: 'Administrador',
+      rolAprobador: Rol.ADMINISTRADOR,
+      descuentoMinimo: 15,
+      montoMinimo: 50_000,
+    },
+  });
+
   console.log(
-    `✅ Seed completo: ${SUCURSALES.length} sucursales, ${USUARIOS.length} usuarios (password: test1234).`,
+    `✅ Seed completo: ${SUCURSALES.length} sucursales, ${USUARIOS.length} usuarios (password: test1234), regla de aprobación nivel 1.`,
   );
 }
 
