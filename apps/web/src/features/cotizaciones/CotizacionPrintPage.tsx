@@ -149,7 +149,7 @@ export function CotizacionPrintPage() {
             <p className="font-mono text-slate-700">Cuenta: {EMPRESA.banco.cuenta}</p>
             <p className="font-mono text-slate-700">CLABE: {EMPRESA.banco.clabe}</p>
             <p className="mt-2 text-slate-500">
-              {EMPRESA.redes.facebook} · {EMPRESA.redes.instagram} · {EMPRESA.redes.youtube}
+              {EMPRESA.redes.facebook} · {EMPRESA.redes.instagram}
             </p>
           </div>
           <div className="shrink-0 text-center">

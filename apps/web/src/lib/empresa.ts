@@ -1,5 +1,5 @@
 // Datos de la empresa para el PDF/impresión de cotización (plan §13).
-// TODO(Motipreca): confirmar datos bancarios reales y las URLs de redes.
+// TODO(Motipreca): confirmar datos bancarios reales.
 // Los marcados como "(por confirmar)" son placeholders a reemplazar.
 
 export const EMPRESA = {
@@ -13,10 +13,10 @@ export const EMPRESA = {
     cuenta: '0000 0000 0000 (por confirmar)',
     clabe: '000000000000000000 (por confirmar)',
   },
+  // Motipreca no tiene YouTube (confirmado por Fer, jul 2026).
   redes: {
-    facebook: 'facebook.com/motipreca',
+    facebook: 'facebook.com/Motipreca',
     instagram: 'instagram.com/motipreca',
-    youtube: 'youtube.com/@motipreca',
   },
 };
 
