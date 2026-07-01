@@ -1,4 +1,4 @@
-import type { CreateCotizacionInput } from '@motipreca/shared';
+import type { CobrarCotizacionInput, CreateCotizacionInput } from '@motipreca/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cotizacionesApi, type CotizacionesFilter, type EstadoCotizacion } from '../../lib/api';
 
@@ -75,5 +75,14 @@ export function useReabrirCotizacion() {
   return useMutation({
     mutationFn: (id: string) => cotizacionesApi.reabrir(id),
     onSuccess: (data) => invalidar(data.id),
+  });
+}
+
+export function useCobrarCotizacion() {
+  const invalidar = useInvalidarCotizacion();
+  return useMutation({
+    mutationFn: (vars: { id: string; input: CobrarCotizacionInput }) =>
+      cotizacionesApi.cobrar(vars.id, vars.input),
+    onSuccess: (_venta, vars) => invalidar(vars.id),
   });
 }

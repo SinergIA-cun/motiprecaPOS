@@ -39,7 +39,13 @@ export const createVentaSchema = z.object({
   pagos: z.array(pagoSchema).min(1, 'Registra al menos un pago'),
 });
 
+/** Cobro de una cotización aprobada: solo los pagos; partidas y totales salen de la cotización. */
+export const cobrarCotizacionSchema = z.object({
+  pagos: z.array(pagoSchema).min(1, 'Registra al menos un pago'),
+});
+
 export type ItemVentaInput = z.infer<typeof itemVentaSchema>;
 export type PagoInput = z.infer<typeof pagoSchema>;
 export type CreateVentaInput = z.infer<typeof createVentaSchema>;
+export type CobrarCotizacionInput = z.infer<typeof cobrarCotizacionSchema>;
 export type MetodoPago = z.infer<typeof metodoPagoSchema>;

@@ -1,5 +1,6 @@
 import type {
   AuthUser,
+  CobrarCotizacionInput,
   CreateClienteInput,
   CreateCotizacionInput,
   CreateProductoInput,
@@ -288,6 +289,7 @@ export interface CotizacionDetail {
   sucursal: { id: string; nombre: string; prefijoFolio: string };
   asesor: { nombre: string; iniciales: string };
   aprobaciones: AprobacionDetalle[];
+  venta: { id: string; folio: string } | null;
 }
 
 export interface CotizacionesFilter {
@@ -343,6 +345,12 @@ export const cotizacionesApi = {
     request<{ data: CotizacionDetail }>(
       `/cotizaciones/${id}/reabrir`,
       { method: 'POST' },
+      true,
+    ).then((r) => r.data),
+  cobrar: (id: string, input: CobrarCotizacionInput) =>
+    request<{ data: { id: string; folio: string } }>(
+      `/cotizaciones/${id}/cobrar`,
+      { method: 'POST', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),
 };

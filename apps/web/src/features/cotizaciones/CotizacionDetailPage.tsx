@@ -7,15 +7,19 @@ import { Modal } from '../../components/ui/Modal';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
 import { formatMoney } from '../../lib/format';
+import { CobroModal } from '../pos/CobroModal';
 import { ESTADO_LABEL, ESTADO_TONE } from './estado';
 import {
   useAprobarCotizacion,
+  useCobrarCotizacion,
   useCotizacion,
   useEnviarAprobacion,
   useReabrirCotizacion,
   useRechazarCotizacion,
   useUpdateEstadoCotizacion,
 } from './hooks';
+
+const ROLES_COBRO = ['CAJERO', 'GERENTE', 'ADMINISTRADOR'];
 
 const dateFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'long' });
 const fmtDate = (iso: string) => dateFmt.format(new Date(iso));
@@ -25,6 +29,7 @@ export function CotizacionDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.rol === 'ADMINISTRADOR';
+  const puedeCobrar = ROLES_COBRO.includes(user?.rol ?? '');
 
   const { data: cot, isLoading, isError } = useCotizacion(id);
   const enviarMut = useEnviarAprobacion();
@@ -32,16 +37,19 @@ export function CotizacionDetailPage() {
   const rechazarMut = useRechazarCotizacion();
   const reabrirMut = useReabrirCotizacion();
   const estadoMut = useUpdateEstadoCotizacion();
+  const cobrarMut = useCobrarCotizacion();
 
   const [rechazarOpen, setRechazarOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
+  const [cobroOpen, setCobroOpen] = useState(false);
 
   const pendiente =
     enviarMut.isPending ||
     aprobarMut.isPending ||
     rechazarMut.isPending ||
     reabrirMut.isPending ||
-    estadoMut.isPending;
+    estadoMut.isPending ||
+    cobrarMut.isPending;
 
   if (isLoading) {
     return <CenteredMessage>Cargando cotización…</CenteredMessage>;
@@ -134,13 +142,15 @@ export function CotizacionDetailPage() {
                   Enviar
                 </Button>
               ) : null}
-              <Button
-                className="h-9 px-4 text-xs"
-                disabled={pendiente}
-                onClick={() => estadoMut.mutate({ id, estado: 'COBRADA' })}
-              >
-                Marcar cobrada
-              </Button>
+              {puedeCobrar ? (
+                <Button
+                  className="h-9 px-4 text-xs"
+                  disabled={pendiente}
+                  onClick={() => setCobroOpen(true)}
+                >
+                  Cobrar
+                </Button>
+              ) : null}
               <Button
                 variant="ghost"
                 className="h-9 px-4 text-xs"
@@ -152,13 +162,23 @@ export function CotizacionDetailPage() {
             </>
           ) : null}
           {cot.estado === 'COBRADA' ? (
-            <Button
-              variant="ghost"
-              className="h-9 px-4 text-xs"
-              onClick={() => navigate(`/cotizaciones/${id}/imprimir`)}
-            >
-              Imprimir / PDF
-            </Button>
+            <>
+              {cot.venta ? (
+                <Button
+                  className="h-9 px-4 text-xs"
+                  onClick={() => navigate(`/ventas/${cot.venta?.id}/ticket`)}
+                >
+                  Ver ticket
+                </Button>
+              ) : null}
+              <Button
+                variant="ghost"
+                className="h-9 px-4 text-xs"
+                onClick={() => navigate(`/cotizaciones/${id}/imprimir`)}
+              >
+                Imprimir / PDF
+              </Button>
+            </>
           ) : null}
         </div>
       </header>
@@ -306,6 +326,29 @@ export function CotizacionDetailPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Montaje condicional: al cerrar se desmonta y resetea método/monto. */}
+      {cobroOpen ? (
+        <CobroModal
+          open
+          total={Number(cot.total)}
+          pending={cobrarMut.isPending}
+          errorMessage={cobrarMut.error instanceof Error ? cobrarMut.error.message : undefined}
+          onClose={() => {
+            setCobroOpen(false);
+            cobrarMut.reset();
+          }}
+          onConfirm={(metodo, referencia) =>
+            cobrarMut.mutate(
+              {
+                id,
+                input: { pagos: [{ metodoPago: metodo, monto: Number(cot.total), referencia }] },
+              },
+              { onSuccess: (venta) => navigate(`/ventas/${venta.id}/ticket`) },
+            )
+          }
+        />
+      ) : null}
     </>
   );
 }

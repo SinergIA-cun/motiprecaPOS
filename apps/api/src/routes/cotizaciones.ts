@@ -1,5 +1,6 @@
 import { Prisma, prisma } from '@motipreca/database';
 import {
+  cobrarCotizacionSchema,
   createCotizacionSchema,
   estadoCotizacionSchema,
   rechazarCotizacionSchema,
@@ -13,6 +14,7 @@ import { authorize } from '../middleware/authorize.js';
 
 const auth = { preHandler: [authenticate] };
 const adminOnly = { preHandler: [authenticate, authorize('ADMINISTRADOR')] };
+const pos = { preHandler: [authenticate, authorize('CAJERO', 'GERENTE', 'ADMINISTRADOR')] };
 
 /** Regla de aprobación de Fase 1 (nivel 1 = Administrador). */
 async function reglaNivel1() {
@@ -64,6 +66,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           orderBy: { createdAt: 'desc' },
           include: { aprobador: { select: { nombre: true, iniciales: true } } },
         },
+        venta: { select: { id: true, folio: true } },
       },
     });
     if (!cotizacion) throw notFound('Cotización no encontrada');
@@ -180,6 +183,9 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       throw validationError('Datos inválidos', parsed.error.flatten().fieldErrors);
     }
+    if (parsed.data.estado === 'COBRADA') {
+      throw conflict('Para cobrar usa el flujo de cobro: registra el pago y genera la venta');
+    }
     const existing = await prisma.cotizacion.findUnique({
       where: { id },
       select: { id: true, estado: true },
@@ -192,6 +198,111 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
       data: { estado: parsed.data.estado },
     });
     return { data: cotizacion };
+  });
+
+  // ---- POST /cotizaciones/:id/cobrar (Cajero/Gerente/Admin) ----
+  // Cobra una cotización APROBADA: genera la venta (folio VTA, partidas copiadas
+  // de la cotización, pagos) y la marca COBRADA — todo en una transacción.
+  app.post('/cotizaciones/:id/cobrar', pos, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const cajeroId = request.user?.id;
+    if (!cajeroId) throw unauthorized();
+
+    const parsed = cobrarCotizacionSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw validationError('Datos inválidos', parsed.error.flatten().fieldErrors);
+    }
+
+    const cot = await prisma.cotizacion.findUnique({
+      where: { id },
+      include: {
+        items: { orderBy: { orden: 'asc' } },
+        sucursal: { select: { prefijoFolio: true } },
+        venta: { select: { id: true, folio: true } },
+      },
+    });
+    if (!cot) throw notFound('Cotización no encontrada');
+    if (cot.venta) throw conflict(`Esta cotización ya fue cobrada (venta ${cot.venta.folio})`);
+    if (cot.estado !== 'APROBADA') {
+      throw conflict('Solo una cotización aprobada se puede cobrar');
+    }
+    if (cot.vigenciaHasta < new Date()) {
+      throw conflict('La cotización ya venció; revisa los precios y genera una nueva');
+    }
+
+    const total = round2(Number(cot.total));
+    const sumaPagos = round2(parsed.data.pagos.reduce((s, p) => s + p.monto, 0));
+    if (sumaPagos !== total) {
+      throw validationError(`Los pagos suman ${sumaPagos}; deben igualar el total (${total}).`);
+    }
+
+    const venta = await prisma.$transaction(async (tx) => {
+      const rango = await tx.rangoFolio.findUnique({
+        where: {
+          sucursalId_tipoDocumento: {
+            sucursalId: cot.sucursalId,
+            tipoDocumento: 'VENTA_MOSTRADOR',
+          },
+        },
+      });
+      if (!rango || !rango.activo) {
+        throw validationError('No hay rango de folios de venta para esta sucursal');
+      }
+      if (rango.proximoFolio > rango.rangoFin) {
+        throw conflict('Se agotó el rango de folios de venta de esta sucursal');
+      }
+      const numero = rango.proximoFolio;
+      await tx.rangoFolio.update({ where: { id: rango.id }, data: { proximoFolio: numero + 1 } });
+      const folio = `${cot.sucursal.prefijoFolio}-VTA-${String(numero).padStart(6, '0')}`;
+
+      // Totales y partidas se copian tal cual de la cotización: es el contrato pactado.
+      const created = await tx.venta.create({
+        data: {
+          folio,
+          sucursalId: cot.sucursalId,
+          cajeroId,
+          clienteId: cot.clienteId,
+          cotizacionId: cot.id,
+          subtotal: cot.subtotal,
+          descuentoTotal: cot.descuentoTotal,
+          iva: cot.iva,
+          total: cot.total,
+          items: {
+            create: cot.items.map((i) => ({
+              productoId: i.productoId,
+              descripcion: i.descripcion,
+              cantidad: i.cantidad,
+              precioUnitario: i.precioUnitario,
+              descuentoPct: i.descuentoPct,
+              importe: i.importe,
+              orden: i.orden,
+            })),
+          },
+          pagos: {
+            create: parsed.data.pagos.map((p) => ({
+              metodoPago: p.metodoPago,
+              monto: p.monto,
+              referencia: p.referencia ?? null,
+            })),
+          },
+        },
+        select: { id: true, folio: true },
+      });
+      await tx.cotizacion.update({ where: { id }, data: { estado: 'COBRADA' } });
+      await tx.historialCotizacion.create({
+        data: {
+          cotizacionId: id,
+          usuarioId: cajeroId,
+          estadoAnterior: 'APROBADA',
+          estadoNuevo: 'COBRADA',
+          comentario: `Cobrada — venta ${created.folio}`,
+        },
+      });
+      return created;
+    });
+
+    reply.code(201);
+    return { data: venta };
   });
 
   // ---- POST /cotizaciones/:id/enviar-aprobacion ----
