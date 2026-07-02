@@ -9,6 +9,7 @@ import { CotizacionBuilderPage } from './features/cotizaciones/CotizacionBuilder
 import { CotizacionDetailPage } from './features/cotizaciones/CotizacionDetailPage';
 import { CotizacionPrintPage } from './features/cotizaciones/CotizacionPrintPage';
 import { CotizacionesPage } from './features/cotizaciones/CotizacionesPage';
+import { CajaPage } from './features/caja/CajaPage';
 import { POSPage } from './features/pos/POSPage';
 import { TicketPage } from './features/pos/TicketPage';
 import { ProductosPage } from './features/productos/ProductosPage';
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
               { path: '/admin/sucursales', element: <SucursalesPage /> },
               { path: '/admin/usuarios', element: <UsuariosPage /> },
               { path: '/admin/reglas-aprobacion', element: <ReglasAprobacionPage /> },
+              { path: '/admin/caja', element: <CajaPage /> },
             ],
           },
         ],

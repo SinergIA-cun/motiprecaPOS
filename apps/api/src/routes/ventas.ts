@@ -84,6 +84,8 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
     if (sumaPagos !== total) {
       throw validationError(`Los pagos suman ${sumaPagos}; deben igualar el total (${total}).`);
     }
+    // Efectivo puro y sin factura → entra al registro de caja en efectivo (auditable).
+    const esStandby = d.pagos.every((p) => p.metodoPago === 'EFECTIVO');
 
     const venta = await prisma.$transaction(async (tx) => {
       const rango = await tx.rangoFolio.findUnique({
@@ -111,6 +113,7 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
           descuentoTotal,
           iva,
           total,
+          esStandby,
           items: {
             create: items.map((i) => ({
               productoId: i.productoId,

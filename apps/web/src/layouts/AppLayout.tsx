@@ -8,6 +8,7 @@ import {
   Store,
   UserCog,
   Users,
+  Wallet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -40,6 +41,7 @@ const NAV_ADMIN: NavEntry[] = [
   { to: '/admin/sucursales', label: 'Sucursales', icon: Building2, ready: true },
   { to: '/admin/usuarios', label: 'Usuarios', icon: UserCog, ready: true },
   { to: '/admin/reglas-aprobacion', label: 'Reglas de aprobación', icon: ShieldCheck, ready: true },
+  { to: '/admin/caja', label: 'Caja en efectivo', icon: Wallet, ready: true },
 ];
 
 function NavItem({ item }: { item: NavEntry }) {

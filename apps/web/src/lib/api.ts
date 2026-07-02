@@ -423,6 +423,45 @@ export const ventasApi = {
     ).then((r) => r.data),
 };
 
+// ---- Caja en efectivo (Administrador) — registro auditable de efectivo sin factura ----
+
+export interface CajaResumenGrupo {
+  sucursal: string;
+  mes: string; // YYYY-MM
+  total: number;
+  count: number;
+}
+
+export interface CajaMovimiento {
+  id: string;
+  folio: string;
+  createdAt: string;
+  sucursal: string;
+  cliente: string | null;
+  total: string;
+}
+
+export interface CajaEfectivo {
+  totalGeneral: number;
+  resumen: CajaResumenGrupo[];
+  movimientos: CajaMovimiento[];
+}
+
+export interface AccesoCaja {
+  id: string;
+  usuario: string;
+  email: string;
+  ip: string | null;
+  ruta: string;
+  createdAt: string;
+}
+
+export const cajaApi = {
+  efectivo: () => request<{ data: CajaEfectivo }>('/caja/efectivo', {}, true).then((r) => r.data),
+  accesos: () =>
+    request<{ data: AccesoCaja[] }>('/caja/efectivo/accesos', {}, true).then((r) => r.data),
+};
+
 export const sucursalesApi = {
   list: () => request<{ data: Sucursal[] }>('/sucursales', {}, true).then((r) => r.data),
   create: (input: CreateSucursalInput) =>

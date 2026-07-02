@@ -88,9 +88,10 @@ model Usuario {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cotizaciones Cotizacion[] @relation("asesor")
-  aprobaciones Aprobacion[] @relation("aprobador")
-  ventas       Venta[]      @relation("cajero")
+  cotizaciones Cotizacion[]  @relation("asesor")
+  aprobaciones Aprobacion[]  @relation("aprobador")
+  ventas       Venta[]       @relation("cajero")
+  accesosCaja  AccesoCaja[]
 
   @@index([email])
   @@index([sucursalId])
@@ -394,4 +395,25 @@ enum MetodoPago {
   TARJETA_DEBITO
   TARJETA_CREDITO
   MIXTO
+}
+
+// ===========================================================================
+// Caja en efectivo (auditable)
+// Registro interno del efectivo cobrado sin factura, por sucursal. NO es un
+// mecanismo de ocultamiento: vive en el schema público, se accede desde el
+// panel de Administración (403 honesto si no eres admin) y cada consulta queda
+// registrada aquí. Diseñado para sobrevivir una auditoría, no para evadirla.
+// ===========================================================================
+
+/// Bitácora de accesos a la sección de caja en efectivo (quién, cuándo, IP).
+model AccesoCaja {
+  id        String   @id @default(cuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+  ip        String?
+  ruta      String // qué se consultó (ej. "resumen", "movimientos")
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([createdAt])
 }

@@ -9,6 +9,7 @@ import { env } from './lib/env.js';
 import { AppError } from './lib/errors.js';
 import { redis } from './lib/redis.js';
 import { authRoutes } from './routes/auth.js';
+import { cajaRoutes } from './routes/caja.js';
 import { clienteRoutes } from './routes/clientes.js';
 import { configRoutes } from './routes/config.js';
 import { cotizacionRoutes } from './routes/cotizaciones.js';
@@ -95,6 +96,7 @@ await app.register(productoRoutes);
 await app.register(cotizacionRoutes);
 await app.register(configRoutes);
 await app.register(ventaRoutes);
+await app.register(cajaRoutes);
 await app.register(syncRoutes);
 
 // ---- Graceful shutdown (regla #57) ----
