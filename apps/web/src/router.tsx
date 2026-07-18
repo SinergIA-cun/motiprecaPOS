@@ -38,6 +38,7 @@ export const router = createBrowserRouter([
           { path: '/cotizaciones', element: <CotizacionesPage /> },
           { path: '/cotizaciones/nueva', element: <CotizacionBuilderPage /> },
           { path: '/cotizaciones/:id', element: <CotizacionDetailPage /> },
+          { path: '/cotizaciones/:id/editar', element: <CotizacionBuilderPage /> },
           {
             element: <AdminRoute />,
             children: [

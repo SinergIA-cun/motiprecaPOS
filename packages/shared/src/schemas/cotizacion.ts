@@ -41,6 +41,18 @@ export const updateEstadoCotizacionSchema = z.object({
   estado: estadoCotizacionSchema,
 });
 
+/** Edición de una cotización ABIERTA. La sucursal no cambia (el folio es suyo). */
+export const updateCotizacionSchema = z.object({
+  clienteId: z.string().min(1, 'Selecciona un cliente'),
+  vigencia: z.coerce.number().int().min(1, 'Mínimo 1 día').max(365, 'Máximo 365 días').default(15),
+  anticipoPct: z.coerce.number().min(1, 'Mínimo 1%').max(100, 'Máximo 100%').default(60),
+  observaciones: z.preprocess(
+    emptyToUndefined,
+    z.string().trim().max(1000, 'Observaciones demasiado largas').optional(),
+  ),
+  items: z.array(itemCotizacionSchema).min(1, 'Agrega al menos una partida'),
+});
+
 /** Seguimiento del pedido tras el cobro (§11): 4 etapas manuales. */
 export const etapaPedidoSchema = z.enum([
   'EN_PRODUCCION',
@@ -76,6 +88,7 @@ export const updateReglaAprobacionSchema = z.object({
 
 export type ItemCotizacionInput = z.infer<typeof itemCotizacionSchema>;
 export type CreateCotizacionInput = z.infer<typeof createCotizacionSchema>;
+export type UpdateCotizacionInput = z.infer<typeof updateCotizacionSchema>;
 export type EstadoCotizacion = z.infer<typeof estadoCotizacionSchema>;
 export type EtapaPedido = z.infer<typeof etapaPedidoSchema>;
 export type RechazarCotizacionInput = z.infer<typeof rechazarCotizacionSchema>;

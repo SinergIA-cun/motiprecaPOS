@@ -15,8 +15,10 @@ import {
   useAprobarCotizacion,
   useCobrarCotizacion,
   useCotizacion,
+  useDuplicarCotizacion,
   useEnviarAprobacion,
   useReabrirCotizacion,
+  useReactivarCotizacion,
   useRechazarCotizacion,
   useUpdateEstadoCotizacion,
   useUpdateEtapaPedido,
@@ -26,6 +28,8 @@ const ROLES_COBRO = ['CAJERO', 'GERENTE', 'ADMINISTRADOR'];
 
 const dateFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'long' });
 const fmtDate = (iso: string) => dateFmt.format(new Date(iso));
+const dateTimeFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+const fmtDateTime = (iso: string) => dateTimeFmt.format(new Date(iso));
 
 export function CotizacionDetailPage() {
   const { id = '' } = useParams();
@@ -43,6 +47,8 @@ export function CotizacionDetailPage() {
   const estadoMut = useUpdateEstadoCotizacion();
   const cobrarMut = useCobrarCotizacion();
   const etapaMut = useUpdateEtapaPedido();
+  const duplicarMut = useDuplicarCotizacion();
+  const reactivarMut = useReactivarCotizacion();
 
   const [rechazarOpen, setRechazarOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -54,7 +60,9 @@ export function CotizacionDetailPage() {
     rechazarMut.isPending ||
     reabrirMut.isPending ||
     estadoMut.isPending ||
-    cobrarMut.isPending;
+    cobrarMut.isPending ||
+    duplicarMut.isPending ||
+    reactivarMut.isPending;
 
   if (isLoading) {
     return <CenteredMessage>Cargando cotización…</CenteredMessage>;
@@ -96,12 +104,44 @@ export function CotizacionDetailPage() {
         <Badge tone={ESTADO_TONE[cot.estado]}>{ESTADO_LABEL[cot.estado]}</Badge>
         <div className="ml-auto flex gap-2">
           {cot.estado === 'ABIERTA' ? (
+            <>
+              <Button
+                variant="ghost"
+                className="h-9 px-4 text-xs"
+                onClick={() => navigate(`/cotizaciones/${id}/editar`)}
+              >
+                Editar
+              </Button>
+              <Button
+                className="h-9 px-4 text-xs"
+                disabled={pendiente}
+                onClick={() => enviarMut.mutate(id)}
+              >
+                Mandar a aprobación
+              </Button>
+            </>
+          ) : null}
+          {cot.estado === 'EXPIRADA' ? (
             <Button
               className="h-9 px-4 text-xs"
               disabled={pendiente}
-              onClick={() => enviarMut.mutate(id)}
+              onClick={() => reactivarMut.mutate(id)}
             >
-              Mandar a aprobación
+              Reactivar
+            </Button>
+          ) : null}
+          {cot.estado !== 'ELIMINADA' ? (
+            <Button
+              variant="ghost"
+              className="h-9 px-4 text-xs"
+              disabled={pendiente || duplicarMut.isPending}
+              onClick={() =>
+                duplicarMut.mutate(id, {
+                  onSuccess: (nueva) => navigate(`/cotizaciones/${nueva.id}`),
+                })
+              }
+            >
+              Duplicar
             </Button>
           ) : null}
           {cot.estado === 'PENDIENTE_APROBACION_INTERNA' && isAdmin ? (
@@ -206,6 +246,12 @@ export function CotizacionDetailPage() {
             <Banner tone="danger">
               Rechazada en aprobación interna
               {rechazo?.motivo ? `: ${rechazo.motivo}` : ''}. Reábrela para corregir y reenviar.
+            </Banner>
+          ) : null}
+          {cot.estado === 'EXPIRADA' ? (
+            <Banner tone="warn">
+              Venció el {fmtDate(cot.vigenciaHasta)}. Puedes reactivarla, pero{' '}
+              <strong>los precios pueden haber cambiado</strong> — revísalos antes de reenviarla.
             </Banner>
           ) : null}
 
@@ -375,6 +421,29 @@ export function CotizacionDetailPage() {
                 Observaciones
               </p>
               <p className="whitespace-pre-line text-sm text-slate-600">{cot.observaciones}</p>
+            </section>
+          ) : null}
+
+          {/* Historial (bitácora de auditoría) */}
+          {cot.historial.length > 0 ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-6">
+              <p className="mb-4 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-slate-400">
+                Historial
+              </p>
+              <ol className="space-y-3 border-l-2 border-slate-100 pl-4">
+                {cot.historial.map((h) => (
+                  <li key={h.id} className="relative text-sm">
+                    <span className="absolute -left-[1.35rem] top-1.5 h-2 w-2 rounded-full bg-navy-300" />
+                    <p className="text-slate-700">
+                      {h.comentario ?? `${ESTADO_LABEL[h.estadoNuevo]}`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {fmtDateTime(h.createdAt)}
+                      {h.usuario ? ` · ${h.usuario}` : ' · sistema'}
+                    </p>
+                  </li>
+                ))}
+              </ol>
             </section>
           ) : null}
         </div>

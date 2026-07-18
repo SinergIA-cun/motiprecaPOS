@@ -12,6 +12,7 @@ import type {
   MetodoPago,
   Rol,
   UpdateClienteInput,
+  UpdateCotizacionInput,
   UpdateProductoInput,
   UpdateSucursalInput,
   UpdateUsuarioInput,
@@ -273,6 +274,16 @@ export interface ItemCotizacion {
   descuentoPct: string;
   importe: string;
   orden: number;
+  producto: { unidad: Unidad };
+}
+
+export interface HistorialEntry {
+  id: string;
+  estadoAnterior: EstadoCotizacion | null;
+  estadoNuevo: EstadoCotizacion;
+  comentario: string | null;
+  createdAt: string;
+  usuario: string | null;
 }
 
 export interface AprobacionDetalle {
@@ -317,6 +328,7 @@ export interface CotizacionDetail {
     esStandby: boolean;
     pagos: { monto: string }[];
   } | null;
+  historial: HistorialEntry[];
 }
 
 export interface CotizacionesFilter {
@@ -388,6 +400,24 @@ export const cotizacionesApi = {
     request<{ data: CotizacionDetail }>(
       `/cotizaciones/${id}/etapa`,
       { method: 'PATCH', body: JSON.stringify({ etapa }) },
+      true,
+    ).then((r) => r.data),
+  update: (id: string, input: UpdateCotizacionInput) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}`,
+      { method: 'PUT', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+  duplicar: (id: string) =>
+    request<{ data: { id: string; folio: string } }>(
+      `/cotizaciones/${id}/duplicar`,
+      { method: 'POST' },
+      true,
+    ).then((r) => r.data),
+  reactivar: (id: string) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}/reactivar`,
+      { method: 'POST' },
       true,
     ).then((r) => r.data),
 };

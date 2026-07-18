@@ -1,4 +1,8 @@
-import type { CobrarCotizacionInput, CreateCotizacionInput } from '@motipreca/shared';
+import type {
+  CobrarCotizacionInput,
+  CreateCotizacionInput,
+  UpdateCotizacionInput,
+} from '@motipreca/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cotizacionesApi,
@@ -83,6 +87,31 @@ export function useReabrirCotizacion() {
   const invalidar = useInvalidarCotizacion();
   return useMutation({
     mutationFn: (id: string) => cotizacionesApi.reabrir(id),
+    onSuccess: (data) => invalidar(data.id),
+  });
+}
+
+export function useUpdateCotizacion() {
+  const invalidar = useInvalidarCotizacion();
+  return useMutation({
+    mutationFn: (vars: { id: string; input: UpdateCotizacionInput }) =>
+      cotizacionesApi.update(vars.id, vars.input),
+    onSuccess: (data) => invalidar(data.id),
+  });
+}
+
+export function useDuplicarCotizacion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => cotizacionesApi.duplicar(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cotizaciones'] }),
+  });
+}
+
+export function useReactivarCotizacion() {
+  const invalidar = useInvalidarCotizacion();
+  return useMutation({
+    mutationFn: (id: string) => cotizacionesApi.reactivar(id),
     onSuccess: (data) => invalidar(data.id),
   });
 }

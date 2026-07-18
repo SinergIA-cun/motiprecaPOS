@@ -136,6 +136,43 @@ try {
   app.log.error({ err }, 'No se pudo asegurar la regla de aprobación por defecto');
 }
 
+// §14: expiración automática — al vencer la vigencia, la cotización se marca
+// EXPIRADA (se puede reactivar desde el detalle, con aviso de revisar precios).
+async function expirarVencidas(): Promise<void> {
+  try {
+    const vencidas = await prisma.cotizacion.findMany({
+      where: {
+        estado: { in: ['ABIERTA', 'PENDIENTE_APROBACION_INTERNA', 'APROBADA'] },
+        vigenciaHasta: { lt: new Date() },
+      },
+      select: { id: true, estado: true },
+    });
+    for (const c of vencidas) {
+      // Guarda por estado: si otro proceso ya la expiró, no duplica la bitácora.
+      const res = await prisma.cotizacion.updateMany({
+        where: { id: c.id, estado: c.estado },
+        data: { estado: 'EXPIRADA' },
+      });
+      if (res.count === 0) continue;
+      await prisma.historialCotizacion.create({
+        data: {
+          cotizacionId: c.id,
+          estadoAnterior: c.estado,
+          estadoNuevo: 'EXPIRADA',
+          comentario: 'Expirada automáticamente al vencer su vigencia',
+        },
+      });
+    }
+    if (vencidas.length > 0) {
+      app.log.info(`Cotizaciones expiradas automáticamente: ${vencidas.length}`);
+    }
+  } catch (err) {
+    app.log.error({ err }, 'Error al expirar cotizaciones vencidas');
+  }
+}
+await expirarVencidas();
+setInterval(() => void expirarVencidas(), 60 * 60 * 1000); // cada hora
+
 try {
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
 } catch (err) {

@@ -1,20 +1,20 @@
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
-import { ApiError, type Producto, type Unidad } from '../../lib/api';
+import { ApiError, type CotizacionDetail, type Producto, type Unidad } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSucursales } from '../admin/hooks';
 import { CreditoPanel } from '../clientes/CreditoPanel';
 import { useClientes } from '../clientes/hooks';
 import { ProductoPicker } from './ProductoPicker';
-import { useCreateCotizacion } from './hooks';
+import { useCotizacion, useCreateCotizacion, useUpdateCotizacion } from './hooks';
 
 const IVA_RATE = 0.16;
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -34,18 +34,50 @@ interface Row {
 }
 
 export function CotizacionBuilderPage() {
+  // Modo edición: /cotizaciones/:id/editar carga la cotización y prellena el form
+  // (remontaje por key, mismo patrón que ReglaForm).
+  const { id: editId = '' } = useParams();
+  const { data: editCot, isLoading } = useCotizacion(editId);
+
+  if (editId && (isLoading || !editCot)) {
+    return (
+      <div className="flex flex-1 items-center justify-center py-20 text-sm text-slate-400">
+        Cargando cotización…
+      </div>
+    );
+  }
+  return <BuilderForm key={editId || 'nueva'} editCot={editId ? editCot : undefined} />;
+}
+
+function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: clientes } = useClientes({ activo: true });
   const { data: sucursales } = useSucursales();
   const createMut = useCreateCotizacion();
+  const updateMut = useUpdateCotizacion();
+  const esEdicion = Boolean(editCot);
 
-  const [clienteId, setClienteId] = useState('');
-  const [sucursalSel, setSucursalSel] = useState('');
-  const [vigencia, setVigencia] = useState('15');
-  const [anticipoPct, setAnticipoPct] = useState('60'); // §10: default 60%
-  const [observaciones, setObservaciones] = useState('');
-  const [rows, setRows] = useState<Row[]>([]);
+  const [clienteId, setClienteId] = useState(editCot?.cliente.id ?? '');
+  const [sucursalSel, setSucursalSel] = useState(editCot?.sucursal.id ?? '');
+  const [vigencia, setVigencia] = useState(editCot ? String(editCot.vigencia) : '15');
+  const [anticipoPct, setAnticipoPct] = useState(
+    editCot ? String(Number(editCot.anticipoPct)) : '60', // §10: default 60%
+  );
+  const [observaciones, setObservaciones] = useState(editCot?.observaciones ?? '');
+  const [rows, setRows] = useState<Row[]>(
+    editCot
+      ? editCot.items.map((i) => ({
+          key: i.id,
+          productoId: i.productoId,
+          descripcion: i.descripcion,
+          cantidad: String(Number(i.cantidad)),
+          precioUnitario: String(Number(i.precioUnitario)),
+          descuentoPct: String(Number(i.descuentoPct)),
+          unidad: i.producto.unidad,
+        }))
+      : [],
+  );
   const [formError, setFormError] = useState<string | null>(null);
 
   const sucursalId = sucursalSel || user?.sucursalId || sucursales?.[0]?.id || '';
@@ -82,7 +114,8 @@ export function CotizacionBuilderPage() {
   const iva = round2(subtotalNeto * IVA_RATE);
   const total = round2(subtotalNeto + iva);
 
-  const apiError = createMut.error instanceof ApiError ? createMut.error.message : undefined;
+  const mutActiva = esEdicion ? updateMut : createMut;
+  const apiError = mutActiva.error instanceof ApiError ? mutActiva.error.message : undefined;
 
   function guardar() {
     setFormError(null);
@@ -92,22 +125,29 @@ export function CotizacionBuilderPage() {
     if (rows.some((r) => num(r.cantidad) <= 0))
       return setFormError('Las cantidades deben ser mayores a 0.');
 
-    createMut.mutate(
-      {
-        clienteId,
-        sucursalId,
-        vigencia: Number(vigencia) || 15,
-        anticipoPct: Number(anticipoPct) || 60,
-        observaciones: observaciones || undefined,
-        items: rows.map((r) => ({
-          productoId: r.productoId,
-          cantidad: num(r.cantidad),
-          precioUnitario: num(r.precioUnitario),
-          descuentoPct: num(r.descuentoPct),
-        })),
-      },
-      { onSuccess: (data) => navigate(`/cotizaciones/${data.id}`) },
-    );
+    const base = {
+      clienteId,
+      vigencia: Number(vigencia) || 15,
+      anticipoPct: Number(anticipoPct) || 60,
+      observaciones: observaciones || undefined,
+      items: rows.map((r) => ({
+        productoId: r.productoId,
+        cantidad: num(r.cantidad),
+        precioUnitario: num(r.precioUnitario),
+        descuentoPct: num(r.descuentoPct),
+      })),
+    };
+    if (esEdicion && editCot) {
+      updateMut.mutate(
+        { id: editCot.id, input: base },
+        { onSuccess: (data) => navigate(`/cotizaciones/${data.id}`) },
+      );
+    } else {
+      createMut.mutate(
+        { ...base, sucursalId },
+        { onSuccess: (data) => navigate(`/cotizaciones/${data.id}`) },
+      );
+    }
   }
 
   return (
@@ -122,7 +162,7 @@ export function CotizacionBuilderPage() {
           <ArrowLeft size={18} strokeWidth={2} />
         </button>
         <h1 className="font-display text-lg font-bold tracking-tight text-navy-900">
-          Nueva cotización
+          {esEdicion ? `Editar ${editCot?.folio}` : 'Nueva cotización'}
         </h1>
         <span className="font-mono text-[0.62rem] uppercase tracking-[0.14em] text-slate-400">
           / Ventas
@@ -152,6 +192,7 @@ export function CotizacionBuilderPage() {
                 <Select
                   id="sucursal"
                   value={sucursalId}
+                  disabled={esEdicion} // el folio pertenece a la sucursal original
                   onChange={(e) => setSucursalSel(e.target.value)}
                 >
                   {sucursales?.map((s) => (
@@ -349,8 +390,12 @@ export function CotizacionBuilderPage() {
             <Button variant="ghost" className="h-11" onClick={() => navigate('/cotizaciones')}>
               Cancelar
             </Button>
-            <Button className="h-11" disabled={createMut.isPending} onClick={guardar}>
-              {createMut.isPending ? 'Guardando…' : 'Guardar cotización'}
+            <Button className="h-11" disabled={mutActiva.isPending} onClick={guardar}>
+              {mutActiva.isPending
+                ? 'Guardando…'
+                : esEdicion
+                  ? 'Guardar cambios'
+                  : 'Guardar cotización'}
             </Button>
           </div>
         </div>
