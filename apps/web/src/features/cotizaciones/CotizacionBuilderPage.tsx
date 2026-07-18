@@ -11,6 +11,7 @@ import { ApiError, type Producto, type Unidad } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSucursales } from '../admin/hooks';
+import { CreditoPanel } from '../clientes/CreditoPanel';
 import { useClientes } from '../clientes/hooks';
 import { ProductoPicker } from './ProductoPicker';
 import { useCreateCotizacion } from './hooks';
@@ -170,6 +171,11 @@ export function CotizacionBuilderPage() {
                 />
               </Field>
             </div>
+            {clienteId ? (
+              <div className="mt-4">
+                <CreditoPanel clienteId={clienteId} />
+              </div>
+            ) : null}
           </section>
 
           {/* Partidas */}

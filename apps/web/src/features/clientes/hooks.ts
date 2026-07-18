@@ -6,6 +6,16 @@ export function useClientes(filter: ClientesFilter) {
   return useQuery({ queryKey: ['clientes', filter], queryFn: () => clientesApi.list(filter) });
 }
 
+/** Crédito del cliente (adeudo vivo desde Alegra; el API cachea 60s). */
+export function useCreditoCliente(clienteId: string) {
+  return useQuery({
+    queryKey: ['credito', clienteId],
+    queryFn: () => clientesApi.credito(clienteId),
+    enabled: Boolean(clienteId),
+    staleTime: 60_000,
+  });
+}
+
 export function useCreateCliente() {
   const qc = useQueryClient();
   return useMutation({

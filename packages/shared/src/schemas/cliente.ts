@@ -28,6 +28,11 @@ const sucursalIdUpdate = z.preprocess(
   (v: unknown) => (v === '' ? null : v),
   z.string().min(1).nullable().optional(),
 );
+/** Línea de crédito (plan §5). '' o null = sin crédito. Solo gerencia la edita. */
+const lineaCreditoOpcional = z.preprocess(
+  (v: unknown) => (v === '' || v === undefined ? undefined : v === null ? null : v),
+  z.coerce.number().min(0, 'No puede ser negativa').nullable().optional(),
+);
 
 /** Alta de cliente. */
 export const createClienteSchema = z.object({
@@ -38,6 +43,7 @@ export const createClienteSchema = z.object({
   rfc: rfcOpcional,
   notas: notasOpcional,
   sucursalId: sucursalIdCreate,
+  lineaCredito: lineaCreditoOpcional,
 });
 
 /** Edición de cliente. */
@@ -50,6 +56,7 @@ export const updateClienteSchema = z.object({
   notas: notasOpcional,
   sucursalId: sucursalIdUpdate,
   activo: z.boolean().optional(),
+  lineaCredito: lineaCreditoOpcional,
 });
 
 export type CreateClienteInput = z.infer<typeof createClienteSchema>;

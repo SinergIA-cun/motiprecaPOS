@@ -7,6 +7,7 @@ import { Field } from '../../components/ui/Field';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
+import { useAuth } from '../../hooks/useAuth';
 import type { Cliente, Sucursal } from '../../lib/api';
 
 const formSchema = z.object({
@@ -18,6 +19,7 @@ const formSchema = z.object({
   sucursalId: z.string(),
   notas: z.string().trim().optional(),
   activo: z.boolean().optional(),
+  lineaCredito: z.string().trim().optional(), // solo gerencia; '' = sin crédito
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -39,6 +41,8 @@ export function ClienteForm({
   onCancel,
 }: Props) {
   const isEdit = Boolean(cliente);
+  const { user } = useAuth();
+  const esGerencia = user?.rol === 'GERENTE' || user?.rol === 'ADMINISTRADOR';
   const {
     register,
     handleSubmit,
@@ -54,6 +58,7 @@ export function ClienteForm({
       sucursalId: cliente?.sucursalId ?? '',
       notas: cliente?.notas ?? '',
       activo: cliente?.activo ?? true,
+      lineaCredito: cliente?.lineaCredito != null ? String(Number(cliente.lineaCredito)) : '',
     },
   });
 
@@ -66,6 +71,10 @@ export function ClienteForm({
       rfc: v.rfc ? v.rfc.toUpperCase() : undefined,
       notas: v.notas ? v.notas : undefined,
       sucursalId: v.sucursalId ? v.sucursalId : null,
+      // El backend rechaza este campo si el rol no es gerencia; no lo mandamos.
+      ...(esGerencia
+        ? { lineaCredito: v.lineaCredito?.trim() ? Number(v.lineaCredito) : null }
+        : {}),
     };
     onSubmit(isEdit ? { ...base, activo: v.activo } : base);
   });
@@ -114,9 +123,24 @@ export function ClienteForm({
         </Field>
       </div>
 
-      <Field label="RFC (opcional)" htmlFor="rfc" error={errors.rfc?.message}>
-        <Input id="rfc" {...register('rfc')} maxLength={13} className="font-mono uppercase" />
-      </Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="RFC (opcional)" htmlFor="rfc" error={errors.rfc?.message}>
+          <Input id="rfc" {...register('rfc')} maxLength={13} className="font-mono uppercase" />
+        </Field>
+        {esGerencia ? (
+          <Field label="Línea de crédito ($)" htmlFor="lineaCredito">
+            <Input
+              id="lineaCredito"
+              type="number"
+              min="0"
+              step="1000"
+              placeholder="vacío = contado"
+              className="font-mono"
+              {...register('lineaCredito')}
+            />
+          </Field>
+        ) : null}
+      </div>
 
       <Field label="Notas" htmlFor="notas" error={errors.notas?.message}>
         <Textarea id="notas" rows={3} {...register('notas')} />

@@ -8,6 +8,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/cn';
 import { formatMoney } from '../../lib/format';
+import { CreditoPanel } from '../clientes/CreditoPanel';
 import { CobroModal } from '../pos/CobroModal';
 import { ESTADO_LABEL, ESTADO_TONE, ETAPA_LABEL, ETAPAS_PEDIDO } from './estado';
 import {
@@ -259,6 +260,9 @@ export function CotizacionDetailPage() {
               ) : null}
             </section>
           ) : null}
+
+          {/* Crédito del cliente (§5): adeudo vivo desde Alegra */}
+          <CreditoPanel clienteId={cot.cliente.id} />
 
           {/* Encabezado del documento */}
           <section className="grid grid-cols-2 gap-6 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-3">

@@ -9,6 +9,7 @@ import {
 } from '@motipreca/shared';
 import type { FastifyInstance } from 'fastify';
 import { descuentoPctEfectivo, evaluarAprobacion } from '../lib/aprobacion.js';
+import { creditoDeCliente } from '../lib/credito.js';
 import { conflict, notFound, unauthorized, validationError } from '../lib/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
@@ -389,12 +390,25 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
     const usuarioId = request.user?.id;
     const cot = await prisma.cotizacion.findUnique({
       where: { id },
-      select: { id: true, estado: true, subtotal: true, descuentoTotal: true, total: true },
+      select: {
+        id: true,
+        estado: true,
+        subtotal: true,
+        descuentoTotal: true,
+        total: true,
+        cliente: { select: { id: true, alegraId: true, lineaCredito: true } },
+      },
     });
     if (!cot) throw notFound('Cotización no encontrada');
     if (cot.estado !== 'ABIERTA') {
       throw conflict('Solo una cotización abierta se puede mandar a aprobación');
     }
+
+    // Disparador de crédito (§5): solo aplica si el cliente tiene línea configurada.
+    const credito =
+      cot.cliente.lineaCredito != null
+        ? { disponible: (await creditoDeCliente(cot.cliente)).disponible }
+        : null;
 
     const regla = await reglaNivel1();
     const evaluacion = evaluarAprobacion(
@@ -404,6 +418,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           Number(cot.subtotal),
           Number(cot.descuentoTotal),
         ),
+        credito,
       },
       regla,
     );

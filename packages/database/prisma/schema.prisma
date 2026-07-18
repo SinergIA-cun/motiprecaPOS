@@ -123,6 +123,10 @@ model Cliente {
   email      String?
   rfc        String? // dato fiscal básico (MVP); facturación completa en fase posterior
   notas      String?
+
+  // Línea de crédito máxima (plan §5). null = sin crédito configurado (contado).
+  // El adeudo NO se guarda aquí: se consulta en vivo a Alegra (facturas abiertas).
+  lineaCredito Decimal? @db.Decimal(12, 2)
   sucursalId String?
   sucursal   Sucursal?   @relation(fields: [sucursalId], references: [id])
   activo     Boolean     @default(true)

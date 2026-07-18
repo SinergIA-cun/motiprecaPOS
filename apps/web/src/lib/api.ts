@@ -151,9 +151,19 @@ export interface Cliente {
   rfc: string | null;
   notas: string | null;
   sucursalId: string | null;
+  lineaCredito: string | null; // Decimal serializado; null = contado
   activo: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Crédito del cliente: línea local + adeudo consultado en vivo a Alegra. */
+export interface CreditoCliente {
+  lineaCredito: number | null;
+  adeudo: number | null;
+  disponible: number | null;
+  vinculado: boolean;
+  errorAlegra: boolean;
 }
 
 export interface ClientesFilter {
@@ -183,6 +193,8 @@ export const clientesApi = {
       { method: 'PATCH', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),
+  credito: (id: string) =>
+    request<{ data: CreditoCliente }>(`/clientes/${id}/credito`, {}, true).then((r) => r.data),
 };
 
 export type Unidad = 'M2' | 'PZA' | 'ML' | 'KG' | 'JGO' | 'LT' | 'M3' | 'TON';

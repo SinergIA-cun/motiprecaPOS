@@ -56,3 +56,18 @@ export function fetchContacts(limit = 30): Promise<AlegraContact[]> {
 export function fetchItems(limit = 30): Promise<AlegraItem[]> {
   return alegraGet<AlegraItem[]>(`/items?limit=${limit}`);
 }
+
+export interface AlegraInvoice {
+  id: string;
+  status?: string | null;
+  total?: number | string | null;
+  balance?: number | string | null; // saldo pendiente de la factura
+  client?: { id?: string | number | null } | null;
+}
+
+/** Facturas abiertas (con saldo) de un contacto de Alegra. */
+export function fetchOpenInvoicesByClient(alegraClientId: string): Promise<AlegraInvoice[]> {
+  return alegraGet<AlegraInvoice[]>(
+    `/invoices?client_id=${encodeURIComponent(alegraClientId)}&status=open&limit=30`,
+  );
+}
