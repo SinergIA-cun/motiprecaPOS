@@ -66,6 +66,11 @@ export function CotizacionDetailPage() {
   const bruto = Number(cot.subtotal) + Number(cot.descuentoTotal);
   const descuentoTotal = Number(cot.descuentoTotal);
   const rechazo = cot.aprobaciones.find((a) => a.decision === 'RECHAZAR');
+  // Anticipos (§10): lo pagado vive en la venta ligada; el saldo se finiquita vía Alegra.
+  const pagado = cot.venta
+    ? Math.round(cot.venta.pagos.reduce((s, p) => s + Number(p.monto), 0) * 100) / 100
+    : 0;
+  const saldo = Math.round((Number(cot.total) - pagado) * 100) / 100;
   const mailtoEnviar = cot.cliente.email
     ? `mailto:${cot.cliente.email}?subject=${encodeURIComponent(
         `Cotización ${cot.folio} — Motipreca`,
@@ -258,6 +263,27 @@ export function CotizacionDetailPage() {
                   Haz clic en una etapa para actualizar el pedido. Cada cambio queda en la bitácora.
                 </p>
               ) : null}
+              {cot.venta ? (
+                <div
+                  className={cn(
+                    'mt-4 flex flex-wrap gap-x-5 gap-y-1 rounded-lg border px-4 py-2.5 text-xs',
+                    saldo > 0
+                      ? 'border-amber-200 bg-amber-50 text-amber-800'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                  )}
+                >
+                  <span>
+                    Pagado: <strong>{formatMoney(pagado)}</strong> de {formatMoney(cot.total)}
+                  </span>
+                  {saldo > 0 ? (
+                    <span>
+                      Saldo: <strong>{formatMoney(saldo)}</strong> — se finiquita vía Alegra
+                    </span>
+                  ) : (
+                    <span className="font-semibold">✓ Pagada por completo</span>
+                  )}
+                </div>
+              ) : null}
             </section>
           ) : null}
 
@@ -397,18 +423,16 @@ export function CotizacionDetailPage() {
         <CobroModal
           open
           total={Number(cot.total)}
+          minimoACobrar={(Number(cot.total) * Number(cot.anticipoPct)) / 100}
           pending={cobrarMut.isPending}
           errorMessage={cobrarMut.error instanceof Error ? cobrarMut.error.message : undefined}
           onClose={() => {
             setCobroOpen(false);
             cobrarMut.reset();
           }}
-          onConfirm={(metodo, referencia) =>
+          onConfirm={(metodo, monto, referencia) =>
             cobrarMut.mutate(
-              {
-                id,
-                input: { pagos: [{ metodoPago: metodo, monto: Number(cot.total), referencia }] },
-              },
+              { id, input: { pagos: [{ metodoPago: metodo, monto, referencia }] } },
               { onSuccess: (venta) => navigate(`/ventas/${venta.id}/ticket`) },
             )
           }

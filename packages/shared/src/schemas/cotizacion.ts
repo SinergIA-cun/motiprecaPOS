@@ -28,6 +28,8 @@ export const createCotizacionSchema = z.object({
   clienteId: z.string().min(1, 'Selecciona un cliente'),
   sucursalId: z.string().min(1, 'Selecciona una sucursal'),
   vigencia: z.coerce.number().int().min(1, 'Mínimo 1 día').max(365, 'Máximo 365 días').default(15),
+  // % de anticipo requerido al cobrar (§10). 100 = pago completo.
+  anticipoPct: z.coerce.number().min(1, 'Mínimo 1%').max(100, 'Máximo 100%').default(60),
   observaciones: z.preprocess(
     emptyToUndefined,
     z.string().trim().max(1000, 'Observaciones demasiado largas').optional(),

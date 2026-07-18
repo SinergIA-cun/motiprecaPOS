@@ -43,6 +43,7 @@ export function CotizacionBuilderPage() {
   const [clienteId, setClienteId] = useState('');
   const [sucursalSel, setSucursalSel] = useState('');
   const [vigencia, setVigencia] = useState('15');
+  const [anticipoPct, setAnticipoPct] = useState('60'); // §10: default 60%
   const [observaciones, setObservaciones] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -96,6 +97,7 @@ export function CotizacionBuilderPage() {
         clienteId,
         sucursalId,
         vigencia: Number(vigencia) || 15,
+        anticipoPct: Number(anticipoPct) || 60,
         observaciones: observaciones || undefined,
         items: rows.map((r) => ({
           productoId: r.productoId,
@@ -168,6 +170,17 @@ export function CotizacionBuilderPage() {
                   className="font-mono"
                   value={vigencia}
                   onChange={(e) => setVigencia(e.target.value)}
+                />
+              </Field>
+              <Field label="Anticipo al cobrar (%)" htmlFor="anticipo">
+                <Input
+                  id="anticipo"
+                  type="number"
+                  min="1"
+                  max="100"
+                  className="font-mono"
+                  value={anticipoPct}
+                  onChange={(e) => setAnticipoPct(e.target.value)}
                 />
               </Field>
             </div>

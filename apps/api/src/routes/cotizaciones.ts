@@ -102,7 +102,14 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           orderBy: { createdAt: 'desc' },
           include: { aprobador: { select: { nombre: true, iniciales: true } } },
         },
-        venta: { select: { id: true, folio: true, esStandby: true } },
+        venta: {
+          select: {
+            id: true,
+            folio: true,
+            esStandby: true,
+            pagos: { select: { monto: true } },
+          },
+        },
       },
     });
     if (!cotizacion) throw notFound('Cotización no encontrada');
@@ -191,6 +198,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           total,
           vigencia: d.vigencia,
           vigenciaHasta,
+          anticipoPct: d.anticipoPct,
           observaciones: d.observaciones ?? null,
           items: {
             create: items.map((i) => ({
@@ -266,11 +274,17 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
       throw conflict('La cotización ya venció; revisa los precios y genera una nueva');
     }
 
+    // Anticipos (§10): se acepta desde el anticipo mínimo hasta el total.
+    // El saldo restante se finiquita vía Alegra (cuentas por cobrar).
     const total = round2(Number(cot.total));
+    const anticipoMinimo = round2((total * Number(cot.anticipoPct)) / 100);
     const sumaPagos = round2(parsed.data.pagos.reduce((s, p) => s + p.monto, 0));
-    if (sumaPagos !== total) {
-      throw validationError(`Los pagos suman ${sumaPagos}; deben igualar el total (${total}).`);
+    if (sumaPagos < anticipoMinimo || sumaPagos > total) {
+      throw validationError(
+        `Los pagos suman ${sumaPagos}; deben cubrir al menos el anticipo (${anticipoMinimo}, ${Number(cot.anticipoPct)}%) sin exceder el total (${total}).`,
+      );
     }
+    const saldo = round2(total - sumaPagos);
     // Efectivo puro y sin factura → entra al registro de caja en efectivo (auditable).
     const esStandby = parsed.data.pagos.every((p) => p.metodoPago === 'EFECTIVO');
 
@@ -338,7 +352,10 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           usuarioId: cajeroId,
           estadoAnterior: 'APROBADA',
           estadoNuevo: 'COBRADA',
-          comentario: `Cobrada — venta ${created.folio}. Pedido en producción.`,
+          comentario:
+            saldo > 0
+              ? `Cobrado anticipo de ${sumaPagos} (saldo ${saldo}, se finiquita vía Alegra) — venta ${created.folio}. Pedido en producción.`
+              : `Cobrada — venta ${created.folio}. Pedido en producción.`,
         },
       });
       return created;

@@ -295,6 +295,7 @@ export interface CotizacionDetail {
   requiereAprobacion: boolean;
   motivoAprobacion: string | null;
   etapaPedido: EtapaPedido | null;
+  anticipoPct: string; // Decimal serializado (§10)
   vigencia: number;
   vigenciaHasta: string;
   observaciones: string | null;
@@ -310,7 +311,12 @@ export interface CotizacionDetail {
   sucursal: { id: string; nombre: string; prefijoFolio: string };
   asesor: { nombre: string; iniciales: string };
   aprobaciones: AprobacionDetalle[];
-  venta: { id: string; folio: string; esStandby: boolean } | null;
+  venta: {
+    id: string;
+    folio: string;
+    esStandby: boolean;
+    pagos: { monto: string }[];
+  } | null;
 }
 
 export interface CotizacionesFilter {

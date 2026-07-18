@@ -231,6 +231,9 @@ model Cotizacion {
   vigenciaHasta DateTime
   observaciones String?
 
+  // % de anticipo requerido al cobrar (§10, se define por cotización; default 60).
+  anticipoPct Decimal @default(60) @db.Decimal(5, 2)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

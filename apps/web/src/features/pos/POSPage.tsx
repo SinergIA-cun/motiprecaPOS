@@ -82,7 +82,8 @@ export function POSPage() {
     setCart((c) => c.filter((x) => x.productoId !== id));
   }
 
-  function cobrar(metodo: MetodoPago, referencia?: string) {
+  // Venta de mostrador: siempre al 100% (el anticipo es solo para cotizaciones §10).
+  function cobrar(metodo: MetodoPago, monto: number, referencia?: string) {
     if (!sucursalId) return;
     createMut.mutate(
       {
@@ -94,7 +95,7 @@ export function POSPage() {
           precioUnitario: i.precioUnitario,
           descuentoPct: 0,
         })),
-        pagos: [{ metodoPago: metodo, monto: total, referencia }],
+        pagos: [{ metodoPago: metodo, monto, referencia }],
       },
       { onSuccess: (venta) => navigate(`/ventas/${venta.id}/ticket`) },
     );

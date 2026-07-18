@@ -84,6 +84,17 @@ export function TicketPage() {
           {v.pagos.map((p) => (
             <Row key={p.id} label={METODO_LABEL[p.metodoPago]} value={formatMoney(p.monto)} />
           ))}
+          {(() => {
+            // Anticipos (§10): si lo pagado no cubre el total, el ticket muestra el saldo.
+            const pagado = v.pagos.reduce((s, p) => s + Number(p.monto), 0);
+            const saldo = Math.round((Number(v.total) - pagado) * 100) / 100;
+            return saldo > 0 ? (
+              <div className="mt-0.5 flex justify-between font-bold text-navy-900">
+                <span>SALDO PENDIENTE</span>
+                <span>{formatMoney(saldo)}</span>
+              </div>
+            ) : null;
+          })()}
         </div>
 
         <p className="mt-3 text-center text-slate-500">¡Gracias por su compra!</p>
