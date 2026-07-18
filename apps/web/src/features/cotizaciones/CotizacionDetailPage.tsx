@@ -6,9 +6,10 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
+import { cn } from '../../lib/cn';
 import { formatMoney } from '../../lib/format';
 import { CobroModal } from '../pos/CobroModal';
-import { ESTADO_LABEL, ESTADO_TONE } from './estado';
+import { ESTADO_LABEL, ESTADO_TONE, ETAPA_LABEL, ETAPAS_PEDIDO } from './estado';
 import {
   useAprobarCotizacion,
   useCobrarCotizacion,
@@ -17,6 +18,7 @@ import {
   useReabrirCotizacion,
   useRechazarCotizacion,
   useUpdateEstadoCotizacion,
+  useUpdateEtapaPedido,
 } from './hooks';
 
 const ROLES_COBRO = ['CAJERO', 'GERENTE', 'ADMINISTRADOR'];
@@ -30,6 +32,7 @@ export function CotizacionDetailPage() {
   const { user } = useAuth();
   const isAdmin = user?.rol === 'ADMINISTRADOR';
   const puedeCobrar = ROLES_COBRO.includes(user?.rol ?? '');
+  const esGerencia = isAdmin || user?.rol === 'GERENTE';
 
   const { data: cot, isLoading, isError } = useCotizacion(id);
   const enviarMut = useEnviarAprobacion();
@@ -38,6 +41,7 @@ export function CotizacionDetailPage() {
   const reabrirMut = useReabrirCotizacion();
   const estadoMut = useUpdateEstadoCotizacion();
   const cobrarMut = useCobrarCotizacion();
+  const etapaMut = useUpdateEtapaPedido();
 
   const [rechazarOpen, setRechazarOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -197,6 +201,63 @@ export function CotizacionDetailPage() {
               Rechazada en aprobación interna
               {rechazo?.motivo ? `: ${rechazo.motivo}` : ''}. Reábrela para corregir y reenviar.
             </Banner>
+          ) : null}
+
+          {/* Seguimiento del pedido (§11) — solo cotizaciones cobradas */}
+          {cot.estado === 'COBRADA' ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-slate-400">
+                  Seguimiento del pedido
+                </p>
+                {cot.venta?.esStandby ? <Badge tone="warn">Efectivo · standby</Badge> : null}
+              </div>
+              <ol className="flex flex-wrap items-center gap-2">
+                {ETAPAS_PEDIDO.map((etapa, idx) => {
+                  const actualIdx = cot.etapaPedido ? ETAPAS_PEDIDO.indexOf(cot.etapaPedido) : -1;
+                  const alcanzada = idx <= actualIdx;
+                  const esActual = idx === actualIdx;
+                  return (
+                    <li key={etapa} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!esGerencia || etapaMut.isPending}
+                        onClick={() => etapaMut.mutate({ id, etapa })}
+                        title={esGerencia ? `Marcar "${ETAPA_LABEL[etapa]}"` : undefined}
+                        className={cn(
+                          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                          esActual
+                            ? 'border-navy-700 bg-navy-700 text-white'
+                            : alcanzada
+                              ? 'border-navy-200 bg-navy-50 text-navy-700'
+                              : 'border-slate-200 bg-white text-slate-400',
+                          esGerencia && !esActual ? 'hover:border-navy-400' : '',
+                          !esGerencia ? 'cursor-default' : '',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'grid h-4 w-4 place-items-center rounded-full font-mono text-[0.55rem] font-bold',
+                            alcanzada ? 'bg-white/20' : 'bg-slate-100',
+                          )}
+                        >
+                          {idx + 1}
+                        </span>
+                        {ETAPA_LABEL[etapa]}
+                      </button>
+                      {idx < ETAPAS_PEDIDO.length - 1 ? (
+                        <span className="h-px w-4 bg-slate-200" aria-hidden />
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
+              {esGerencia ? (
+                <p className="mt-3 text-xs text-slate-400">
+                  Haz clic en una etapa para actualizar el pedido. Cada cambio queda en la bitácora.
+                </p>
+              ) : null}
+            </section>
           ) : null}
 
           {/* Encabezado del documento */}

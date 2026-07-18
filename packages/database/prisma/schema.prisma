@@ -218,7 +218,10 @@ model Cotizacion {
 
   // Aprobación (Fase 1: 1 nivel admin + reglas OR configurables)
   requiereAprobacion Boolean @default(false)
-  motivoAprobacion   String? // "descuento", "monto", "descuento y monto"
+  motivoAprobacion   String? // "descuento", "monto", "descuento y monto", "crédito"
+
+  // Seguimiento del pedido (solo aplica una vez COBRADA; arranca EN_PRODUCCION)
+  etapaPedido EtapaPedido?
 
   vigencia      Int      @default(15) // días
   vigenciaHasta DateTime
@@ -248,6 +251,15 @@ enum EstadoCotizacion {
   COBRADA
   EXPIRADA
   ELIMINADA
+}
+
+/// Seguimiento del pedido después del cobro (§11). Lo actualiza gerente/admin
+/// manualmente hasta que exista el módulo de Producción (Fase 3).
+enum EtapaPedido {
+  EN_PRODUCCION
+  LISTO_EN_ALMACEN
+  ENTREGA_PROGRAMADA
+  ENTREGADO
 }
 
 enum Decision {

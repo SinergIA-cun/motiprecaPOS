@@ -8,6 +8,7 @@ import type {
   CreateUsuarioInput,
   CreateVentaInput,
   EstadoCotizacion,
+  EtapaPedido,
   MetodoPago,
   Rol,
   UpdateClienteInput,
@@ -18,7 +19,7 @@ import type {
 
 export type { MetodoPago } from '@motipreca/shared';
 
-export type { EstadoCotizacion } from '@motipreca/shared';
+export type { EstadoCotizacion, EtapaPedido } from '@motipreca/shared';
 import { useAuthStore } from '../stores/auth';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -236,12 +237,19 @@ export interface CotizacionListItem {
   id: string;
   folio: string;
   estado: EstadoCotizacion;
+  etapaPedido: EtapaPedido | null;
   total: string;
   createdAt: string;
   vigenciaHasta: string;
   cliente: { id: string; nombre: string };
   sucursal: { prefijoFolio: string };
-  asesor: { nombre: string; iniciales: string };
+  asesor: { id: string; nombre: string; iniciales: string };
+}
+
+export interface AsesorResumen {
+  id: string;
+  nombre: string;
+  iniciales: string;
 }
 
 export interface ItemCotizacion {
@@ -274,6 +282,7 @@ export interface CotizacionDetail {
   total: string;
   requiereAprobacion: boolean;
   motivoAprobacion: string | null;
+  etapaPedido: EtapaPedido | null;
   vigencia: number;
   vigenciaHasta: string;
   observaciones: string | null;
@@ -289,12 +298,13 @@ export interface CotizacionDetail {
   sucursal: { id: string; nombre: string; prefijoFolio: string };
   asesor: { nombre: string; iniciales: string };
   aprobaciones: AprobacionDetalle[];
-  venta: { id: string; folio: string } | null;
+  venta: { id: string; folio: string; esStandby: boolean } | null;
 }
 
 export interface CotizacionesFilter {
   estado?: EstadoCotizacion;
   clienteId?: string;
+  asesorId?: string;
   q?: string;
 }
 
@@ -303,12 +313,15 @@ export const cotizacionesApi = {
     const qs = new URLSearchParams();
     if (filter.estado) qs.set('estado', filter.estado);
     if (filter.clienteId) qs.set('clienteId', filter.clienteId);
+    if (filter.asesorId) qs.set('asesorId', filter.asesorId);
     if (filter.q) qs.set('q', filter.q);
     const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return request<{ data: CotizacionListItem[] }>(`/cotizaciones${suffix}`, {}, true).then(
       (r) => r.data,
     );
   },
+  asesores: () =>
+    request<{ data: AsesorResumen[] }>('/cotizaciones/asesores', {}, true).then((r) => r.data),
   get: (id: string) =>
     request<{ data: CotizacionDetail }>(`/cotizaciones/${id}`, {}, true).then((r) => r.data),
   create: (input: CreateCotizacionInput) =>
@@ -351,6 +364,12 @@ export const cotizacionesApi = {
     request<{ data: { id: string; folio: string } }>(
       `/cotizaciones/${id}/cobrar`,
       { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
+  updateEtapa: (id: string, etapa: EtapaPedido) =>
+    request<{ data: CotizacionDetail }>(
+      `/cotizaciones/${id}/etapa`,
+      { method: 'PATCH', body: JSON.stringify({ etapa }) },
       true,
     ).then((r) => r.data),
 };

@@ -5,6 +5,7 @@ import {
   estadoCotizacionSchema,
   rechazarCotizacionSchema,
   updateEstadoCotizacionSchema,
+  updateEtapaPedidoSchema,
 } from '@motipreca/shared';
 import type { FastifyInstance } from 'fastify';
 import { descuentoPctEfectivo, evaluarAprobacion } from '../lib/aprobacion.js';
@@ -15,6 +16,15 @@ import { authorize } from '../middleware/authorize.js';
 const auth = { preHandler: [authenticate] };
 const adminOnly = { preHandler: [authenticate, authorize('ADMINISTRADOR')] };
 const pos = { preHandler: [authenticate, authorize('CAJERO', 'GERENTE', 'ADMINISTRADOR')] };
+const gerencia = { preHandler: [authenticate, authorize('GERENTE', 'ADMINISTRADOR')] };
+
+/** Etiquetas para la bitácora de cambios de etapa. */
+const ETAPA_TEXTO: Record<string, string> = {
+  EN_PRODUCCION: 'En producción',
+  LISTO_EN_ALMACEN: 'Listo en almacén',
+  ENTREGA_PROGRAMADA: 'Entrega programada',
+  ENTREGADO: 'Entregado',
+};
 
 /** Regla de aprobación de Fase 1 (nivel 1 = Administrador). */
 async function reglaNivel1() {
@@ -28,16 +38,31 @@ const IVA_RATE = 0.16;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
-  // ---- GET /cotizaciones?estado=&clienteId=&q= ----
+  // ---- GET /cotizaciones?estado=&clienteId=&asesorId=&q= ----
+  // `q` busca en folio, cliente (nombre/razón social), RFC y productos cotizados.
   app.get('/cotizaciones', auth, async (request) => {
-    const q = request.query as { estado?: string; clienteId?: string; q?: string };
+    const q = request.query as {
+      estado?: string;
+      clienteId?: string;
+      asesorId?: string;
+      q?: string;
+    };
     const where: Prisma.CotizacionWhereInput = {};
     if (q.estado) {
       const e = estadoCotizacionSchema.safeParse(q.estado);
       if (e.success) where.estado = e.data;
     }
     if (q.clienteId) where.clienteId = q.clienteId;
-    if (q.q?.trim()) where.folio = { contains: q.q.trim(), mode: 'insensitive' };
+    if (q.asesorId) where.asesorId = q.asesorId;
+    if (q.q?.trim()) {
+      const term = q.q.trim();
+      where.OR = [
+        { folio: { contains: term, mode: 'insensitive' } },
+        { cliente: { nombre: { contains: term, mode: 'insensitive' } } },
+        { cliente: { rfc: { contains: term, mode: 'insensitive' } } },
+        { items: { some: { descripcion: { contains: term, mode: 'insensitive' } } } },
+      ];
+    }
 
     const data = await prisma.cotizacion.findMany({
       where,
@@ -46,10 +71,20 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
       include: {
         cliente: { select: { id: true, nombre: true } },
         sucursal: { select: { prefijoFolio: true } },
-        asesor: { select: { nombre: true, iniciales: true } },
+        asesor: { select: { id: true, nombre: true, iniciales: true } },
       },
     });
     return { data };
+  });
+
+  // ---- GET /cotizaciones/asesores ---- vendedores con cotizaciones (para el filtro).
+  app.get('/cotizaciones/asesores', auth, async () => {
+    const filas = await prisma.cotizacion.findMany({
+      distinct: ['asesorId'],
+      select: { asesor: { select: { id: true, nombre: true, iniciales: true } } },
+      orderBy: { asesorId: 'asc' },
+    });
+    return { data: filas.map((f) => f.asesor) };
   });
 
   // ---- GET /cotizaciones/:id ----
@@ -66,7 +101,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           orderBy: { createdAt: 'desc' },
           include: { aprobador: { select: { nombre: true, iniciales: true } } },
         },
-        venta: { select: { id: true, folio: true } },
+        venta: { select: { id: true, folio: true, esStandby: true } },
       },
     });
     if (!cotizacion) throw notFound('Cotización no encontrada');
@@ -291,14 +326,18 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
         },
         select: { id: true, folio: true },
       });
-      await tx.cotizacion.update({ where: { id }, data: { estado: 'COBRADA' } });
+      // La orden pasa a producción (§10 paso 6): arranca el seguimiento del pedido.
+      await tx.cotizacion.update({
+        where: { id },
+        data: { estado: 'COBRADA', etapaPedido: 'EN_PRODUCCION' },
+      });
       await tx.historialCotizacion.create({
         data: {
           cotizacionId: id,
           usuarioId: cajeroId,
           estadoAnterior: 'APROBADA',
           estadoNuevo: 'COBRADA',
-          comentario: `Cobrada — venta ${created.folio}`,
+          comentario: `Cobrada — venta ${created.folio}. Pedido en producción.`,
         },
       });
       return created;
@@ -306,6 +345,41 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
 
     reply.code(201);
     return { data: venta };
+  });
+
+  // ---- PATCH /cotizaciones/:id/etapa (Gerente/Admin) ----
+  // Seguimiento manual del pedido (§11) hasta que exista el módulo de Producción.
+  app.patch('/cotizaciones/:id/etapa', gerencia, async (request) => {
+    const { id } = request.params as { id: string };
+    const usuarioId = request.user?.id;
+    const parsed = updateEtapaPedidoSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw validationError('Datos inválidos', parsed.error.flatten().fieldErrors);
+    }
+    const cot = await prisma.cotizacion.findUnique({
+      where: { id },
+      select: { id: true, estado: true, etapaPedido: true },
+    });
+    if (!cot) throw notFound('Cotización no encontrada');
+    if (cot.estado !== 'COBRADA') {
+      throw conflict('El seguimiento del pedido aplica solo a cotizaciones cobradas');
+    }
+
+    const etapa = parsed.data.etapa;
+    const cotizacion = await prisma.$transaction(async (tx) => {
+      const updated = await tx.cotizacion.update({ where: { id }, data: { etapaPedido: etapa } });
+      await tx.historialCotizacion.create({
+        data: {
+          cotizacionId: id,
+          usuarioId,
+          estadoAnterior: 'COBRADA',
+          estadoNuevo: 'COBRADA',
+          comentario: `Pedido: ${ETAPA_TEXTO[cot.etapaPedido ?? ''] ?? 'sin etapa'} → ${ETAPA_TEXTO[etapa]}`,
+        },
+      });
+      return updated;
+    });
+    return { data: cotizacion };
   });
 
   // ---- POST /cotizaciones/:id/enviar-aprobacion ----

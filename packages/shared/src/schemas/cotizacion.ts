@@ -39,6 +39,18 @@ export const updateEstadoCotizacionSchema = z.object({
   estado: estadoCotizacionSchema,
 });
 
+/** Seguimiento del pedido tras el cobro (§11): 4 etapas manuales. */
+export const etapaPedidoSchema = z.enum([
+  'EN_PRODUCCION',
+  'LISTO_EN_ALMACEN',
+  'ENTREGA_PROGRAMADA',
+  'ENTREGADO',
+]);
+
+export const updateEtapaPedidoSchema = z.object({
+  etapa: etapaPedidoSchema,
+});
+
 /** Motivo opcional al rechazar una cotización en aprobación interna. */
 export const rechazarCotizacionSchema = z.object({
   motivo: z.preprocess(
@@ -63,5 +75,6 @@ export const updateReglaAprobacionSchema = z.object({
 export type ItemCotizacionInput = z.infer<typeof itemCotizacionSchema>;
 export type CreateCotizacionInput = z.infer<typeof createCotizacionSchema>;
 export type EstadoCotizacion = z.infer<typeof estadoCotizacionSchema>;
+export type EtapaPedido = z.infer<typeof etapaPedidoSchema>;
 export type RechazarCotizacionInput = z.infer<typeof rechazarCotizacionSchema>;
 export type UpdateReglaAprobacionInput = z.infer<typeof updateReglaAprobacionSchema>;

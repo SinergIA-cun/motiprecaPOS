@@ -1,12 +1,21 @@
 import type { CobrarCotizacionInput, CreateCotizacionInput } from '@motipreca/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { cotizacionesApi, type CotizacionesFilter, type EstadoCotizacion } from '../../lib/api';
+import {
+  cotizacionesApi,
+  type CotizacionesFilter,
+  type EstadoCotizacion,
+  type EtapaPedido,
+} from '../../lib/api';
 
 export function useCotizaciones(filter: CotizacionesFilter) {
   return useQuery({
     queryKey: ['cotizaciones', filter],
     queryFn: () => cotizacionesApi.list(filter),
   });
+}
+
+export function useAsesores() {
+  return useQuery({ queryKey: ['cotizaciones', 'asesores'], queryFn: cotizacionesApi.asesores });
 }
 
 export function useCotizacion(id: string) {
@@ -74,6 +83,15 @@ export function useReabrirCotizacion() {
   const invalidar = useInvalidarCotizacion();
   return useMutation({
     mutationFn: (id: string) => cotizacionesApi.reabrir(id),
+    onSuccess: (data) => invalidar(data.id),
+  });
+}
+
+export function useUpdateEtapaPedido() {
+  const invalidar = useInvalidarCotizacion();
+  return useMutation({
+    mutationFn: (vars: { id: string; etapa: EtapaPedido }) =>
+      cotizacionesApi.updateEtapa(vars.id, vars.etapa),
     onSuccess: (data) => invalidar(data.id),
   });
 }

@@ -1,4 +1,4 @@
-import type { EstadoCotizacion } from '../../lib/api';
+import type { EstadoCotizacion, EtapaPedido } from '../../lib/api';
 
 export const ESTADO_LABEL: Record<EstadoCotizacion, string> = {
   ABIERTA: 'Abierta',
@@ -23,4 +23,19 @@ export const ESTADO_TONE: Record<
   RECHAZADA: 'danger',
   EXPIRADA: 'warn',
   ELIMINADA: 'neutral',
+};
+
+/** Etapas del pedido (§11) en orden operativo. */
+export const ETAPAS_PEDIDO: EtapaPedido[] = [
+  'EN_PRODUCCION',
+  'LISTO_EN_ALMACEN',
+  'ENTREGA_PROGRAMADA',
+  'ENTREGADO',
+];
+
+export const ETAPA_LABEL: Record<EtapaPedido, string> = {
+  EN_PRODUCCION: 'En producción',
+  LISTO_EN_ALMACEN: 'Listo en almacén',
+  ENTREGA_PROGRAMADA: 'Entrega programada',
+  ENTREGADO: 'Entregado',
 };
