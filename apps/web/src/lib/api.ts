@@ -10,6 +10,7 @@ import type {
   EstadoCotizacion,
   EtapaPedido,
   MetodoPago,
+  RegistrarPagoInput,
   Rol,
   UpdateClienteInput,
   UpdateCotizacionInput,
@@ -482,6 +483,12 @@ export interface VentaDetalle {
 export const ventasApi = {
   get: (id: string) =>
     request<{ data: VentaDetalle }>(`/ventas/${id}`, {}, true).then((r) => r.data),
+  registrarPago: (ventaId: string, input: RegistrarPagoInput) =>
+    request<{ data: { ventaId: string; pagado: number; saldo: number } }>(
+      `/ventas/${ventaId}/pagos`,
+      { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
   create: (input: CreateVentaInput) =>
     request<{ data: VentaDetalle }>(
       '/ventas',

@@ -27,6 +27,7 @@ export const ESTADO_TONE: Record<
 
 /** Etapas del pedido (§11) en orden operativo. */
 export const ETAPAS_PEDIDO: EtapaPedido[] = [
+  'POR_AUTORIZAR',
   'EN_PRODUCCION',
   'LISTO_EN_ALMACEN',
   'ENTREGA_PROGRAMADA',
@@ -34,6 +35,7 @@ export const ETAPAS_PEDIDO: EtapaPedido[] = [
 ];
 
 export const ETAPA_LABEL: Record<EtapaPedido, string> = {
+  POR_AUTORIZAR: 'Por autorizar',
   EN_PRODUCCION: 'En producción',
   LISTO_EN_ALMACEN: 'Listo en almacén',
   ENTREGA_PROGRAMADA: 'Entrega programada',

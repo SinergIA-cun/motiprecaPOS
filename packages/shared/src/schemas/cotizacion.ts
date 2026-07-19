@@ -53,8 +53,10 @@ export const updateCotizacionSchema = z.object({
   items: z.array(itemCotizacionSchema).min(1, 'Agrega al menos una partida'),
 });
 
-/** Seguimiento del pedido tras el cobro (§11): 4 etapas manuales. */
+/** Seguimiento del pedido tras el cobro (§11). Arranca en POR_AUTORIZAR:
+ *  gerencia autoriza la orden y ahí entra a producción. */
 export const etapaPedidoSchema = z.enum([
+  'POR_AUTORIZAR',
   'EN_PRODUCCION',
   'LISTO_EN_ALMACEN',
   'ENTREGA_PROGRAMADA',

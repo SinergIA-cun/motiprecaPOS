@@ -1,5 +1,5 @@
 import { prisma } from '@motipreca/database';
-import { createVentaSchema } from '@motipreca/shared';
+import { createVentaSchema, registrarPagoSchema } from '@motipreca/shared';
 import type { FastifyInstance } from 'fastify';
 import { conflict, notFound, unauthorized, validationError } from '../lib/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -25,6 +25,70 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
     });
     if (!venta) throw notFound('Venta no encontrada');
     return { data: venta };
+  });
+
+  // ---- POST /ventas/:id/pagos ----  abono posterior sobre una venta con saldo.
+  // Permite el flujo "cliente abona hoy, liquida después" sin pasar por Alegra.
+  app.post('/ventas/:id/pagos', pos, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const usuarioId = request.user?.id;
+    if (!usuarioId) throw unauthorized();
+
+    const parsed = registrarPagoSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw validationError('Datos inválidos', parsed.error.flatten().fieldErrors);
+    }
+
+    const venta = await prisma.venta.findUnique({
+      where: { id },
+      select: { id: true, folio: true, total: true, cotizacionId: true, pagos: true },
+    });
+    if (!venta) throw notFound('Venta no encontrada');
+
+    const total = round2(Number(venta.total));
+    const pagado = round2(venta.pagos.reduce((s, p) => s + Number(p.monto), 0));
+    const saldo = round2(total - pagado);
+    if (saldo <= 0) throw conflict('Esta venta ya está pagada por completo');
+    if (parsed.data.monto > saldo) {
+      throw validationError(
+        `El abono (${parsed.data.monto}) excede el saldo pendiente (${saldo}).`,
+      );
+    }
+    const nuevoSaldo = round2(saldo - parsed.data.monto);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pago.create({
+        data: {
+          ventaId: id,
+          metodoPago: parsed.data.metodoPago,
+          monto: parsed.data.monto,
+          referencia: parsed.data.referencia ?? null,
+        },
+      });
+      // Deja rastro en la cotización origen (si la venta viene de una).
+      if (venta.cotizacionId) {
+        await tx.historialCotizacion.create({
+          data: {
+            cotizacionId: venta.cotizacionId,
+            usuarioId,
+            estadoAnterior: 'COBRADA',
+            estadoNuevo: 'COBRADA',
+            comentario:
+              nuevoSaldo > 0
+                ? `Abono de ${parsed.data.monto} (${parsed.data.metodoPago}); saldo ${nuevoSaldo}`
+                : `Abono de ${parsed.data.monto} (${parsed.data.metodoPago}); liquidada`,
+          },
+        });
+      }
+      // Si la venta queda 100% en efectivo, entra al registro de caja auditable.
+      const todosEfectivo =
+        venta.pagos.every((p) => p.metodoPago === 'EFECTIVO') &&
+        parsed.data.metodoPago === 'EFECTIVO';
+      await tx.venta.update({ where: { id }, data: { esStandby: todosEfectivo } });
+    });
+
+    reply.code(201);
+    return { data: { ventaId: id, pagado: round2(pagado + parsed.data.monto), saldo: nuevoSaldo } };
   });
 
   // ---- POST /ventas ----  venta de mostrador (Cajero/Gerente/Admin).

@@ -494,17 +494,20 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
       throw conflict('La cotización ya venció; revisa los precios y genera una nueva');
     }
 
-    // Anticipos (§10): se acepta desde el anticipo mínimo hasta el total.
-    // El saldo restante se finiquita vía Alegra (cuentas por cobrar).
+    // Cobro tipo cajero: el monto es libre (desde 0.01 hasta el total). El
+    // anticipo sugerido (§10) es sólo referencia; si se cobra por debajo queda
+    // asentado en la bitácora como autorizado por la dirección.
     const total = round2(Number(cot.total));
-    const anticipoMinimo = round2((total * Number(cot.anticipoPct)) / 100);
+    const anticipoSugerido = round2((total * Number(cot.anticipoPct)) / 100);
     const sumaPagos = round2(parsed.data.pagos.reduce((s, p) => s + p.monto, 0));
-    if (sumaPagos < anticipoMinimo || sumaPagos > total) {
-      throw validationError(
-        `Los pagos suman ${sumaPagos}; deben cubrir al menos el anticipo (${anticipoMinimo}, ${Number(cot.anticipoPct)}%) sin exceder el total (${total}).`,
-      );
+    if (sumaPagos <= 0) {
+      throw validationError('El monto a cobrar debe ser mayor a 0.');
+    }
+    if (sumaPagos > total) {
+      throw validationError(`Los pagos suman ${sumaPagos}; no pueden exceder el total (${total}).`);
     }
     const saldo = round2(total - sumaPagos);
+    const bajoAnticipo = sumaPagos < anticipoSugerido;
     // Efectivo puro y sin factura → entra al registro de caja en efectivo (auditable).
     const esStandby = parsed.data.pagos.every((p) => p.metodoPago === 'EFECTIVO');
 
@@ -561,21 +564,25 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
         },
         select: { id: true, folio: true },
       });
-      // La orden pasa a producción (§10 paso 6): arranca el seguimiento del pedido.
+      // Nace la orden de producción, pendiente de autorizar (§10 paso 6).
       await tx.cotizacion.update({
         where: { id },
-        data: { estado: 'COBRADA', etapaPedido: 'EN_PRODUCCION' },
+        data: { estado: 'COBRADA', etapaPedido: 'POR_AUTORIZAR' },
       });
+      const detallePago =
+        saldo > 0
+          ? `Cobrado ${sumaPagos} de ${total} (saldo ${saldo})`
+          : `Cobrada por completo (${total})`;
+      const notaAnticipo = bajoAnticipo
+        ? ` — por debajo del anticipo sugerido (${anticipoSugerido}, ${Number(cot.anticipoPct)}%), autorizado por la dirección`
+        : '';
       await tx.historialCotizacion.create({
         data: {
           cotizacionId: id,
           usuarioId: cajeroId,
           estadoAnterior: 'APROBADA',
           estadoNuevo: 'COBRADA',
-          comentario:
-            saldo > 0
-              ? `Cobrado anticipo de ${sumaPagos} (saldo ${saldo}, se finiquita vía Alegra) — venta ${created.folio}. Pedido en producción.`
-              : `Cobrada — venta ${created.folio}. Pedido en producción.`,
+          comentario: `${detallePago}${notaAnticipo} — venta ${created.folio}. Orden por autorizar.`,
         },
       });
       return created;

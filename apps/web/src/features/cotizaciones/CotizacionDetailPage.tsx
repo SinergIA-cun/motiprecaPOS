@@ -10,6 +10,7 @@ import { cn } from '../../lib/cn';
 import { formatMoney } from '../../lib/format';
 import { CreditoPanel } from '../clientes/CreditoPanel';
 import { CobroModal } from '../pos/CobroModal';
+import { useRegistrarPago } from '../pos/hooks';
 import { ESTADO_LABEL, ESTADO_TONE, ETAPA_LABEL, ETAPAS_PEDIDO } from './estado';
 import {
   useAprobarCotizacion,
@@ -49,10 +50,12 @@ export function CotizacionDetailPage() {
   const etapaMut = useUpdateEtapaPedido();
   const duplicarMut = useDuplicarCotizacion();
   const reactivarMut = useReactivarCotizacion();
+  const abonoMut = useRegistrarPago();
 
   const [rechazarOpen, setRechazarOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [cobroOpen, setCobroOpen] = useState(false);
+  const [abonoOpen, setAbonoOpen] = useState(false);
 
   const pendiente =
     enviarMut.isPending ||
@@ -62,7 +65,8 @@ export function CotizacionDetailPage() {
     estadoMut.isPending ||
     cobrarMut.isPending ||
     duplicarMut.isPending ||
-    reactivarMut.isPending;
+    reactivarMut.isPending ||
+    abonoMut.isPending;
 
   if (isLoading) {
     return <CenteredMessage>Cargando cotización…</CenteredMessage>;
@@ -213,8 +217,18 @@ export function CotizacionDetailPage() {
           ) : null}
           {cot.estado === 'COBRADA' ? (
             <>
+              {cot.venta && saldo > 0 && puedeCobrar ? (
+                <Button
+                  className="h-9 px-4 text-xs"
+                  disabled={pendiente}
+                  onClick={() => setAbonoOpen(true)}
+                >
+                  Registrar pago
+                </Button>
+              ) : null}
               {cot.venta ? (
                 <Button
+                  variant="ghost"
                   className="h-9 px-4 text-xs"
                   onClick={() => navigate(`/ventas/${cot.venta?.id}/ticket`)}
                 >
@@ -492,7 +506,8 @@ export function CotizacionDetailPage() {
         <CobroModal
           open
           total={Number(cot.total)}
-          minimoACobrar={(Number(cot.total) * Number(cot.anticipoPct)) / 100}
+          montoLibre
+          anticipoSugerido={(Number(cot.total) * Number(cot.anticipoPct)) / 100}
           pending={cobrarMut.isPending}
           errorMessage={cobrarMut.error instanceof Error ? cobrarMut.error.message : undefined}
           onClose={() => {
@@ -503,6 +518,31 @@ export function CotizacionDetailPage() {
             cobrarMut.mutate(
               { id, input: { pagos: [{ metodoPago: metodo, monto, referencia }] } },
               { onSuccess: (venta) => navigate(`/ventas/${venta.id}/ticket`) },
+            )
+          }
+        />
+      ) : null}
+
+      {/* Abono sobre el saldo pendiente de la venta ya generada. */}
+      {abonoOpen && cot.venta ? (
+        <CobroModal
+          open
+          montoLibre
+          titulo="Registrar pago"
+          total={saldo}
+          pending={abonoMut.isPending}
+          errorMessage={abonoMut.error instanceof Error ? abonoMut.error.message : undefined}
+          onClose={() => {
+            setAbonoOpen(false);
+            abonoMut.reset();
+          }}
+          onConfirm={(metodo, monto, referencia) =>
+            abonoMut.mutate(
+              {
+                ventaId: cot.venta?.id ?? '',
+                input: { metodoPago: metodo, monto, referencia },
+              },
+              { onSuccess: () => setAbonoOpen(false) },
             )
           }
         />

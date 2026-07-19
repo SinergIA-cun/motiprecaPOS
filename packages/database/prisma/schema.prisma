@@ -261,8 +261,10 @@ enum EstadoCotizacion {
 }
 
 /// Seguimiento del pedido después del cobro (§11). Lo actualiza gerente/admin
-/// manualmente hasta que exista el módulo de Producción (Fase 3).
+/// manualmente hasta que exista el módulo de Producción (Fase 3), que tomará
+/// la autorización (POR_AUTORIZAR → EN_PRODUCCION).
 enum EtapaPedido {
+  POR_AUTORIZAR
   EN_PRODUCCION
   LISTO_EN_ALMACEN
   ENTREGA_PROGRAMADA

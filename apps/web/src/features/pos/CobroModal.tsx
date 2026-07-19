@@ -10,9 +10,13 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 type Props = {
   open: boolean;
+  /** Monto máximo cobrable (total de la cotización, o saldo si es un abono). */
   total: number;
-  /** Mínimo aceptado (anticipo §10). Si es menor al total, se permite cobro parcial. */
-  minimoACobrar?: number;
+  /** Anticipo sugerido (§10). Sólo referencia: el cajero puede cobrar menos. */
+  anticipoSugerido?: number;
+  /** true = monto libre (cotizaciones y abonos). false = cobro exacto (POS mostrador). */
+  montoLibre?: boolean;
+  titulo?: string;
   pending: boolean;
   errorMessage?: string;
   onClose: () => void;
@@ -22,24 +26,26 @@ type Props = {
 export function CobroModal({
   open,
   total,
-  minimoACobrar,
+  anticipoSugerido,
+  montoLibre = false,
+  titulo = 'Cobrar',
   pending,
   errorMessage,
   onClose,
   onConfirm,
 }: Props) {
-  const minimo = round2(minimoACobrar ?? total);
-  const permiteParcial = minimo < total;
+  const sugerido = round2(anticipoSugerido ?? total);
 
   const [metodo, setMetodo] = useState<MetodoPago>('EFECTIVO');
   const [recibido, setRecibido] = useState('');
   const [referencia, setReferencia] = useState('');
-  // Monto a cobrar hoy: por default el anticipo mínimo (o el total si no hay parcial).
-  const [montoStr, setMontoStr] = useState(String(minimo));
+  // Arranca en el anticipo sugerido; el cajero lo puede cambiar libremente.
+  const [montoStr, setMontoStr] = useState(String(montoLibre ? sugerido : total));
 
-  const monto = permiteParcial ? round2(Number(montoStr) || 0) : total;
-  const montoValido = monto >= minimo && monto <= total;
+  const monto = montoLibre ? round2(Number(montoStr) || 0) : total;
+  const montoValido = monto > 0 && monto <= total;
   const saldo = round2(total - monto);
+  const bajoAnticipo = montoLibre && monto > 0 && monto < sugerido;
 
   const esEfectivo = metodo === 'EFECTIVO';
   const recibidoNum = Number(recibido) || 0;
@@ -47,17 +53,17 @@ export function CobroModal({
   const puedeConfirmar = !pending && montoValido && (esEfectivo ? recibidoNum >= monto : true);
 
   return (
-    <Modal open={open} title="Cobrar" subtitle={`Total ${formatMoney(total)}`} onClose={onClose}>
+    <Modal open={open} title={titulo} subtitle={`Total ${formatMoney(total)}`} onClose={onClose}>
       <div className="space-y-5">
-        {permiteParcial ? (
+        {montoLibre ? (
           <div className="space-y-2">
             <label htmlFor="monto-cobrar" className="text-sm font-semibold text-slate-700">
-              Monto a cobrar hoy
+              Monto a cobrar
             </label>
             <Input
               id="monto-cobrar"
               type="number"
-              min={minimo}
+              min="0.01"
               max={total}
               step="0.01"
               inputMode="decimal"
@@ -66,19 +72,26 @@ export function CobroModal({
               onChange={(e) => setMontoStr(e.target.value)}
               aria-invalid={!montoValido}
             />
-            <div className="flex justify-between rounded-lg bg-paper px-4 py-2 text-xs text-slate-500">
-              <span>
-                Anticipo mínimo: <strong>{formatMoney(minimo)}</strong>
-              </span>
+            <div className="flex flex-wrap justify-between gap-2 rounded-lg bg-paper px-4 py-2 text-xs text-slate-500">
+              {anticipoSugerido !== undefined ? (
+                <span>
+                  Anticipo sugerido: <strong>{formatMoney(sugerido)}</strong>
+                </span>
+              ) : null}
               {saldo > 0 && montoValido ? (
                 <span>
-                  Saldo restante: <strong>{formatMoney(saldo)}</strong> (vía Alegra)
+                  Saldo restante: <strong>{formatMoney(saldo)}</strong>
                 </span>
               ) : null}
             </div>
             {!montoValido ? (
               <p className="text-xs text-red-600">
-                El monto debe estar entre {formatMoney(minimo)} y {formatMoney(total)}.
+                El monto debe ser mayor a 0 y no exceder {formatMoney(total)}.
+              </p>
+            ) : bajoAnticipo ? (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Está por debajo del anticipo sugerido. Quedará asentado en la bitácora como
+                autorizado por la dirección.
               </p>
             ) : null}
           </div>

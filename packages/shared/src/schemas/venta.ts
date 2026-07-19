@@ -44,8 +44,14 @@ export const cobrarCotizacionSchema = z.object({
   pagos: z.array(pagoSchema).min(1, 'Registra al menos un pago'),
 });
 
+/** Abono posterior sobre una venta con saldo (pagos parciales, §10). */
+export const registrarPagoSchema = pagoSchema.extend({
+  monto: z.coerce.number().positive('El monto debe ser mayor a 0'),
+});
+
 export type ItemVentaInput = z.infer<typeof itemVentaSchema>;
 export type PagoInput = z.infer<typeof pagoSchema>;
 export type CreateVentaInput = z.infer<typeof createVentaSchema>;
 export type CobrarCotizacionInput = z.infer<typeof cobrarCotizacionSchema>;
+export type RegistrarPagoInput = z.infer<typeof registrarPagoSchema>;
 export type MetodoPago = z.infer<typeof metodoPagoSchema>;
