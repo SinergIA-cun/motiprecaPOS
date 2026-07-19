@@ -536,6 +536,42 @@ export const cajaApi = {
     request<{ data: AccesoCaja[] }>('/caja/efectivo/accesos', {}, true).then((r) => r.data),
 };
 
+// ---- Dashboard operativo ----
+
+export interface DashboardData {
+  alcance: 'propio' | 'global';
+  porVencer: {
+    cantidad: number;
+    dias: number;
+    lista: {
+      id: string;
+      folio: string;
+      total: string;
+      vigenciaHasta: string;
+      cliente: { nombre: string };
+    }[];
+  };
+  cerradas: { mes: number; mesPrevio: number; variacionPct: number | null };
+  ventas: {
+    montoMes: number;
+    montoMesPrevio: number;
+    operacionesMes: number;
+    variacionPct: number | null;
+  };
+  topClientes: { clienteId: string | null; nombre: string; total: number; operaciones: number }[];
+  topVentas: {
+    id: string;
+    folio: string;
+    total: string;
+    createdAt: string;
+    cliente: { nombre: string } | null;
+  }[];
+}
+
+export const dashboardApi = {
+  get: () => request<{ data: DashboardData }>('/dashboard', {}, true).then((r) => r.data),
+};
+
 export const sucursalesApi = {
   list: () => request<{ data: Sucursal[] }>('/sucursales', {}, true).then((r) => r.data),
   create: (input: CreateSucursalInput) =>
