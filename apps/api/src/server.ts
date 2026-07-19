@@ -15,6 +15,7 @@ import { configRoutes } from './routes/config.js';
 import { cotizacionRoutes } from './routes/cotizaciones.js';
 import { healthRoutes } from './routes/health.js';
 import { productoRoutes } from './routes/productos.js';
+import { publicoRoutes } from './routes/publico.js';
 import { sucursalRoutes } from './routes/sucursales.js';
 import { syncRoutes } from './routes/sync.js';
 import { ventaRoutes } from './routes/ventas.js';
@@ -88,6 +89,7 @@ app.setErrorHandler((error, request, reply) => {
 
 // ---- Rutas ----
 await app.register(healthRoutes);
+await app.register(publicoRoutes);
 await app.register(authRoutes);
 await app.register(sucursalRoutes);
 await app.register(usuarioRoutes);

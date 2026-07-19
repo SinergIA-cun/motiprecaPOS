@@ -22,6 +22,7 @@ const gerencia = { preHandler: [authenticate, authorize('GERENTE', 'ADMINISTRADO
 
 /** Etiquetas para la bitácora de cambios de etapa. */
 const ETAPA_TEXTO: Record<string, string> = {
+  POR_AUTORIZAR: 'Por autorizar',
   EN_PRODUCCION: 'En producción',
   LISTO_EN_ALMACEN: 'Listo en almacén',
   ENTREGA_PROGRAMADA: 'Entrega programada',

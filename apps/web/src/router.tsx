@@ -13,6 +13,7 @@ import { CajaPage } from './features/caja/CajaPage';
 import { POSPage } from './features/pos/POSPage';
 import { TicketPage } from './features/pos/TicketPage';
 import { ProductosPage } from './features/productos/ProductosPage';
+import { VerificarPage } from './features/publico/VerificarPage';
 import { ReglasAprobacionPage } from './features/admin/reglas/ReglasAprobacionPage';
 import { SucursalesPage } from './features/admin/sucursales/SucursalesPage';
 import { UsuariosPage } from './features/admin/usuarios/UsuariosPage';
@@ -20,6 +21,8 @@ import { AppLayout } from './layouts/AppLayout';
 import { NotFound } from './pages/NotFound';
 
 export const router = createBrowserRouter([
+  // Verificación pública del QR de la cotización: sin sesión (plan §13).
+  { path: '/verificar/:id', element: <VerificarPage /> },
   {
     element: <PublicOnlyRoute />,
     children: [{ path: '/login', element: <LoginPage /> }],

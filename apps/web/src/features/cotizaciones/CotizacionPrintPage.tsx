@@ -23,7 +23,8 @@ export function CotizacionPrintPage() {
 
   const bruto = Number(cot.subtotal) + Number(cot.descuentoTotal);
   const descuentoTotal = Number(cot.descuentoTotal);
-  const verifyUrl = `${APP_PUBLIC_URL}/cotizaciones/${cot.id}`;
+  // Página pública de verificación (no requiere sesión del cliente).
+  const verifyUrl = `${APP_PUBLIC_URL}/verificar/${cot.id}`;
 
   return (
     <div className="min-h-screen bg-slate-100">
