@@ -35,6 +35,12 @@ const envSchema = z.object({
   ALEGRA_API_URL: z.string().url().default('https://api.alegra.com/api/v1'),
   ALEGRA_API_EMAIL: z.string().optional(),
   ALEGRA_API_TOKEN: z.string().optional(),
+  // Segmento secreto de la URL del webhook. Alegra NO firma sus webhooks ni
+  // permite headers propios, así que el secreto viaja en la ruta (sobre HTTPS)
+  // y además nunca confiamos en el payload: re-consultamos el dato a su API.
+  ALEGRA_WEBHOOK_SECRET: z.string().optional(),
+  // URL pública de esta API (para registrar la suscripción en Alegra).
+  API_PUBLIC_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

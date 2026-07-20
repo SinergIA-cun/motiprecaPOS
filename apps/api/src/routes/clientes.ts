@@ -1,12 +1,16 @@
 import { Prisma, prisma } from '@motipreca/database';
 import { createClienteSchema, updateClienteSchema } from '@motipreca/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { pushClienteAAlegra } from '../lib/alegra/push.js';
 import { creditoDeCliente, invalidarCreditoCache } from '../lib/credito.js';
 import { forbidden, notFound, validationError } from '../lib/errors.js';
 import { authenticate } from '../middleware/authenticate.js';
 
 // Módulo operativo: cualquier usuario autenticado gestiona clientes (regla #15).
 const auth = { preHandler: [authenticate] };
+
+/** Campos que Alegra también guarda: solo estos justifican re-empujar el contacto. */
+const CAMPOS_ALEGRA = ['nombre', 'rfc', 'email', 'telefono'] as const;
 
 /** La línea de crédito solo la fija gerencia (plan §5: su aumento es decisión de arriba). */
 function esGerencia(request: FastifyRequest): boolean {
@@ -87,6 +91,15 @@ export async function clienteRoutes(app: FastifyInstance): Promise<void> {
         lineaCredito: d.lineaCredito ?? null,
       },
     });
+    // El alta local ya está firme. El empuje a Alegra va en segundo plano para
+    // no dejar al vendedor esperando la red; el resultado queda en estadoSync y
+    // el barrido reintenta lo que haya fallado.
+    void pushClienteAAlegra(cliente).then((r) => {
+      if (!r.ok && !r.omitido) {
+        request.log.warn({ clienteId: cliente.id, err: r.error }, 'Push a Alegra falló');
+      }
+    });
+
     reply.code(201);
     return { data: cliente };
   });
@@ -120,6 +133,17 @@ export async function clienteRoutes(app: FastifyInstance): Promise<void> {
 
     const cliente = await prisma.cliente.update({ where: { id }, data });
     invalidarCreditoCache(id);
+
+    // Solo empujamos si cambió algo que Alegra realmente guarda; mover de
+    // sucursal o ajustar la línea de crédito son datos nuestros, no suyos.
+    if (CAMPOS_ALEGRA.some((c) => d[c] !== undefined)) {
+      void pushClienteAAlegra(cliente).then((r) => {
+        if (!r.ok && !r.omitido) {
+          request.log.warn({ clienteId: id, err: r.error }, 'Push a Alegra falló');
+        }
+      });
+    }
+
     return { data: cliente };
   });
 }

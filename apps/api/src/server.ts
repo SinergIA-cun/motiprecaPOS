@@ -9,6 +9,7 @@ import { env } from './lib/env.js';
 import { AppError } from './lib/errors.js';
 import { redis } from './lib/redis.js';
 import { authRoutes } from './routes/auth.js';
+import { asegurarSuscripciones, barridoReconciliacion } from './lib/alegra/suscripciones.js';
 import { cajaRoutes } from './routes/caja.js';
 import { clienteRoutes } from './routes/clientes.js';
 import { configRoutes } from './routes/config.js';
@@ -21,6 +22,7 @@ import { sucursalRoutes } from './routes/sucursales.js';
 import { syncRoutes } from './routes/sync.js';
 import { ventaRoutes } from './routes/ventas.js';
 import { usuarioRoutes } from './routes/usuarios.js';
+import { webhookRoutes } from './routes/webhooks.js';
 
 const isProd = env.NODE_ENV === 'production';
 
@@ -91,6 +93,7 @@ app.setErrorHandler((error, request, reply) => {
 // ---- Rutas ----
 await app.register(healthRoutes);
 await app.register(publicoRoutes);
+await app.register(webhookRoutes);
 await app.register(authRoutes);
 await app.register(sucursalRoutes);
 await app.register(usuarioRoutes);
@@ -176,6 +179,15 @@ async function expirarVencidas(): Promise<void> {
 }
 await expirarVencidas();
 setInterval(() => void expirarVencidas(), 60 * 60 * 1000); // cada hora
+
+// Alegra: re-aseguramos las suscripciones de webhook en cada arranque (Alegra
+// las borra tras 10 fallos seguidos de entrega) y dejamos corriendo el barrido
+// de reconciliación como red por si se pierde algún evento.
+void asegurarSuscripciones(app.log, {
+  apiPublicUrl: env.API_PUBLIC_URL,
+  secreto: env.ALEGRA_WEBHOOK_SECRET,
+});
+setInterval(() => void barridoReconciliacion(app.log), 6 * 60 * 60 * 1000); // cada 6 h
 
 try {
   await app.listen({ port: env.PORT, host: '0.0.0.0' });

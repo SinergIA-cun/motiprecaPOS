@@ -1,6 +1,6 @@
 // Mapeo puro Alegra → modelos de Motipreca (sin I/O, testeable).
 import { EstadoSync, TipoCliente, TipoProducto, Unidad } from '@motipreca/database';
-import type { AlegraContact, AlegraItem, AlegraItemPrice } from './client.js';
+import type { AlegraContact, AlegraContactPayload, AlegraItem, AlegraItemPrice } from './client.js';
 
 // Alegra entrega unidades en código UN/CEFACT, no en nombre. Traducimos a
 // nuestro enum; lo no reconocido cae en PZA (default razonable para catálogo).
@@ -53,6 +53,32 @@ export function mapContactToCliente(contact: AlegraContact) {
     telefono: cleanStr(contact.phonePrimary) ?? cleanStr(contact.mobile),
     alegraId: String(contact.id),
     estadoSync: EstadoSync.SINCRONIZADO,
+  };
+}
+
+/** Régimen fiscal por defecto al empujar un cliente nuevo a Alegra.
+ *  Motipos aún no captura régimen ni uso de CFDI (Fase 2), así que los
+ *  contactos creados desde aquí nacen con el régimen genérico y contabilidad
+ *  debe ajustarlo antes de facturar. */
+export const REGIMEN_DEFAULT = 'SIMPLIFIED_REGIME';
+
+interface ClienteParaAlegra {
+  nombre: string;
+  rfc?: string | null;
+  email?: string | null;
+  telefono?: string | null;
+}
+
+/** Motipreca → Alegra. Inverso de mapContactToCliente. */
+export function mapClienteToContact(cliente: ClienteParaAlegra): AlegraContactPayload {
+  return {
+    name: cliente.nombre.trim(),
+    identification: cleanStr(cliente.rfc)?.toUpperCase(),
+    email: cleanStr(cliente.email)?.toLowerCase(),
+    phonePrimary: cleanStr(cliente.telefono),
+    type: ['client'],
+    regime: REGIMEN_DEFAULT,
+    thirdType: 'NATIONAL',
   };
 }
 

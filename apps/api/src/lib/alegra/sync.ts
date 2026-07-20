@@ -1,7 +1,7 @@
 // Orquestación de la sincronización Alegra → Motipreca (Fase 1.5).
 // Trae contactos e items, filtra clientes y hace upsert por alegraId.
 import { prisma } from '@motipreca/database';
-import { fetchContacts, fetchItems } from './client.js';
+import { fetchAllContacts, fetchAllItems } from './client.js';
 import { isCliente, mapContactToCliente, mapItemToProducto } from './mapper.js';
 
 export interface SyncSummary {
@@ -14,7 +14,10 @@ export async function syncFromAlegra(): Promise<SyncSummary> {
   // allSettled (no Promise.all): si ambos fetch fallan, Promise.all dejaría la
   // segunda promesa como unhandledRejection y Node mataría el proceso. Con
   // allSettled esperamos ambas y propagamos el error como excepción manejable.
-  const [contactsResult, itemsResult] = await Promise.allSettled([fetchContacts(), fetchItems()]);
+  const [contactsResult, itemsResult] = await Promise.allSettled([
+    fetchAllContacts(),
+    fetchAllItems(),
+  ]);
   if (contactsResult.status === 'rejected') throw contactsResult.reason;
   if (itemsResult.status === 'rejected') throw itemsResult.reason;
   const contacts = contactsResult.value;
