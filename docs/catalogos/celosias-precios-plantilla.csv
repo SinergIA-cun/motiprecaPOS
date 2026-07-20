@@ -1,0 +1,41 @@
+codigo,nombre,familia,dimensiones_cm,superficie_m2,peso_kg,piezas_por_m2,unidad,PRECIO_POR_M2,notas_del_catalogo
+CEL-AMAIA-VIB,Celosía Amaia Vibro,Vibrocomprimida,30 x 30 x 10,0.0909,10.6,11,M2,,
+CEL-MAHAHUAL-VIB,Celosía Mahahual Vibro,Vibrocomprimida,25 x 25 x 10,0.0625,7.08,16,M2,,PDF dice superficie 0.62 m2 (error de dedo, es 0.0625)
+CEL-BACALAR-VIB,Celosía Bacalar Vibro,Vibrocomprimida,20 x 20 x 10,0.04,5.32,25,M2,,
+CEL-SIANKAAN-VIB,Celosía Sian Kaan Vibro,Vibrocomprimida,20 x 20 x 10,0.04,,25,M2,,FALTA PESO en el PDF. Ademas el acabado dice De concreto aunque va en la seccion vibro
+CEL-JOE,Celosía Joe,Concreto,25 x 25 x 10,0.0625,6.36,16,M2,,PDF dice superficie 0.62 m2 (es 0.0625)
+CEL-MIGUEL,Celosía Miguel,Concreto,25 x 25 x 10,0.0625,5.72,16,M2,,PDF dice superficie 0.62 m2 (es 0.0625)
+CEL-JAVIER,Celosía Javier,Concreto,25 x 25 x 10,0.0625,8.74,16,M2,,PDF dice superficie 0.62 m2 (es 0.0625)
+CEL-ENRIQUE,Celosía Enrique,Concreto,25 x 25 x 10,0.0625,10.12,16,M2,,PDF dice superficie 0.62 m2 (es 0.0625)
+CEL-AGUSTIN,Celosía Agustín,Concreto,25 x 25 x 10,0.0625,6.3,16,M2,,PDF dice superficie 0.62 m2 (es 0.0625)
+CEL-DALA-TRIPLE,Celosía Dala Triple,Concreto,45 x 23 x 10,0.1042,13,9.6,M2,,
+CEL-DALA,Celosía Dala,Concreto,45 x 8.5 x 15,0.0345,6.05,29,M2,,
+CEL-MARILU,Celosía Marilú,Concreto,30 x 30 x 8,0.0909,8,11,M2,,
+CEL-MIA,Celosía Mía,Concreto,30 x 30 x 8,0.0909,9.5,11,M2,,
+CEL-HOLBOX,Celosía Holbox,Concreto,39.5 x 49 x 4.6,0.1938,9.12,5.16,M2,,
+CEL-TULUM,Celosía Tulum,Concreto,23.7 x 38.5 x 5.3,0.0912,6.61,10.96,M2,,
+CEL-AURA,Celosía Aura,Concreto,25 x 25 x 10,0.04,3.77,25,M2,,INCONSISTENTE: dice 25x25 cm pero 25 pzas/m2 (25 pzas corresponde a 20x20). CONFIRMAR medida real
+CEL-ISOSCELES,Celosía Isósceles,Concreto,32 x 32 x 14,0.1031,19,9.7,M2,,
+CEL-ISOSCELES-DV,Celosía Isósceles Doble Vista,Concreto,32 x 32 x 14,0.1031,19,9.7,M2,,Mismas medidas y peso que la Isósceles sencilla. CONFIRMAR si el peso cambia
+CEL-CUADRILLO,Celosía Cuadrillo,Concreto,36 x 24 x 10,0.0864,7.8,11.57,M2,,
+CEL-ATENAS,Celosía Atenas,Concreto,30 x 30 x 7,0.0909,6.12,11,M2,,PDF dice .009 m2 (es 0.09)
+CEL-OLIMPIA,Celosía Olimpia,Concreto,30 x 30 x 8,0.0909,7.11,11,M2,,PDF dice .009 m2 (es 0.09)
+CEL-RESPLANDOR,Celosía Resplandor,Concreto,30 x 30 x 7,0.0901,5.95,11.1,M2,,
+CEL-HOLANDESA,Celosía Holandesa,Concreto,30 x 30 x 7,0.0901,5.7,11.1,M2,,
+CEL-AMAIA-CON,Celosía Amaia Concreto,Concreto,30 x 30 x 8,0.0901,8,11.1,M2,,
+CEL-3D,Celosía 3D,Concreto,40 x 40 x 13,0.16,14.84,6.25,M2,,
+CEL-LOURDES,Celosía Lourdes,Concreto,40 x 50 x 4.5,0.2,8.1,5,M2,,
+CEL-HEXAGONAL,Celosía Hexagonal,Concreto,30.4 x 35 x 6,0.0769,3.89,13,M2,,
+CEL-KONIK,Celosía Konik,Concreto,20 x 20 x 20,0.04,10.7,25,M2,,
+CEL-BARRA,Celosía Barra,Concreto,45.5 x 7 x 6,0.0318,3.49,31.4,M2,,
+CEL-TULIPAN,Celosía Tulipán,Concreto,40 x 40 x 6,0.16,12.2,6.25,M2,,
+CEL-MIAMI,Celosía Miami,Concreto,40 x 40 x 8,0.16,8.54,6.25,M2,,
+CEL-CIRCULO,Celosía Círculo,Concreto,40 x 40 x 9.2,0.16,11.9,6.25,M2,,
+CEL-ESPANOLA,Celosía Española,Concreto,75 x 45 x 7,0.3425,,2.92,M2,,FALTA PESO en el PDF
+CEL-MARTE,Celosía Marte,Concreto,40 x 40 x 9,0.16,10.63,6.25,M2,,
+CEL-ORION,Celosía Orión,Concreto,40 x 40 x 8,0.16,10.63,6.25,M2,,
+CEL-MARGARITA,Celosía Margarita,Concreto,40 x 40 x 6.5,0.16,,6.25,M2,,FALTA PESO en el PDF
+CEL-MALLORCA,Celosía Mallorca,Concreto,40 x 40 x 8,0.16,12.37,6.25,M2,,
+CEL-CISNE,Celosía Cisne,Concreto,56 x 51 x 9,0.2857,,3.5,M2,,FALTA PESO en el PDF
+CEL-TIMON,Celosía Timón,Concreto,40 x 40 x 6.5,0.16,9.46,6.25,M2,,
+CEL-ANCLA,Celosía Ancla,Concreto,40 x 40 x 6.5,0.16,9.56,6.25,M2,,

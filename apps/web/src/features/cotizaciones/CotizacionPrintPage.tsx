@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { APP_PUBLIC_URL, EMPRESA } from '../../lib/empresa';
-import { formatMoney } from '../../lib/format';
+import { formatMoney, formatTelefono } from '../../lib/format';
 import { useCotizacion } from './hooks';
 
 const dateFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'long' });
@@ -80,7 +80,9 @@ export function CotizacionPrintPage() {
               <p className="font-mono text-slate-600">RFC: {cot.cliente.rfc}</p>
             ) : null}
             {cot.cliente.email ? <p className="text-slate-600">{cot.cliente.email}</p> : null}
-            {cot.cliente.telefono ? <p className="text-slate-600">{cot.cliente.telefono}</p> : null}
+            {cot.cliente.telefono ? (
+              <p className="text-slate-600">{formatTelefono(cot.cliente.telefono)}</p>
+            ) : null}
           </div>
           <div className="space-y-2 text-right">
             <Meta label="Sucursal" value={cot.sucursal.nombre} />

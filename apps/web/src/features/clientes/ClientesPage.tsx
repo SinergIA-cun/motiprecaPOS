@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { ApiError, type Cliente, type ClientesFilter } from '../../lib/api';
+import { formatTelefono } from '../../lib/format';
 import { useSucursales } from '../admin/hooks';
 import { ClienteForm } from './ClienteForm';
 import { useClientes, useCreateCliente, useUpdateCliente } from './hooks';
@@ -101,7 +102,9 @@ export function ClientesPage() {
                       </p>
                     </Td>
                     <Td>
-                      <span className="block text-slate-600">{c.telefono ?? '—'}</span>
+                      <span className="block font-mono text-slate-600">
+                        {formatTelefono(c.telefono) || '—'}
+                      </span>
                       {c.email ? (
                         <span className="block text-xs text-slate-400">{c.email}</span>
                       ) : null}

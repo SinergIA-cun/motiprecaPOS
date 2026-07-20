@@ -9,6 +9,13 @@ import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
 import type { Cliente, Sucursal } from '../../lib/api';
+import {
+  formatMontoEntero,
+  formatTelefono,
+  maskTelefono,
+  parseMontoEntero,
+} from '../../lib/format';
+import { conMascara } from '../../lib/mascara';
 
 const formSchema = z.object({
   nombre: z.string().trim().min(2, 'El nombre es muy corto'),
@@ -52,13 +59,16 @@ export function ClienteForm({
     defaultValues: {
       nombre: cliente?.nombre ?? '',
       tipo: cliente?.tipo ?? 'INDIVIDUAL',
-      telefono: cliente?.telefono ?? '',
+      telefono: formatTelefono(cliente?.telefono),
       email: cliente?.email ?? '',
       rfc: cliente?.rfc ?? '',
       sucursalId: cliente?.sucursalId ?? '',
       notas: cliente?.notas ?? '',
       activo: cliente?.activo ?? true,
-      lineaCredito: cliente?.lineaCredito != null ? String(Number(cliente.lineaCredito)) : '',
+      lineaCredito:
+        cliente?.lineaCredito != null
+          ? formatMontoEntero(String(Number(cliente.lineaCredito)))
+          : '',
     },
   });
 
@@ -72,9 +82,7 @@ export function ClienteForm({
       notas: v.notas ? v.notas : undefined,
       sucursalId: v.sucursalId ? v.sucursalId : null,
       // El backend rechaza este campo si el rol no es gerencia; no lo mandamos.
-      ...(esGerencia
-        ? { lineaCredito: v.lineaCredito?.trim() ? Number(v.lineaCredito) : null }
-        : {}),
+      ...(esGerencia ? { lineaCredito: parseMontoEntero(v.lineaCredito ?? '') } : {}),
     };
     onSubmit(isEdit ? { ...base, activo: v.activo } : base);
   });
@@ -111,7 +119,14 @@ export function ClienteForm({
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Teléfono" htmlFor="telefono" error={errors.telefono?.message}>
-          <Input id="telefono" {...register('telefono')} />
+          <Input
+            id="telefono"
+            type="tel"
+            inputMode="tel"
+            placeholder="998-123-4567"
+            className="font-mono"
+            {...conMascara(register('telefono'), maskTelefono)}
+          />
         </Field>
         <Field label="Email" htmlFor="email" error={errors.email?.message}>
           <Input
@@ -131,12 +146,10 @@ export function ClienteForm({
           <Field label="Línea de crédito ($)" htmlFor="lineaCredito">
             <Input
               id="lineaCredito"
-              type="number"
-              min="0"
-              step="1000"
+              inputMode="numeric"
               placeholder="vacío = contado"
               className="font-mono"
-              {...register('lineaCredito')}
+              {...conMascara(register('lineaCredito'), formatMontoEntero)}
             />
           </Field>
         ) : null}

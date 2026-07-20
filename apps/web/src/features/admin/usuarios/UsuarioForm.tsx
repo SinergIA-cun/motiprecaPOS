@@ -7,6 +7,8 @@ import { Field } from '../../../components/ui/Field';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import type { Sucursal, UsuarioAdmin } from '../../../lib/api';
+import { formatTelefono, maskTelefono } from '../../../lib/format';
+import { conMascara } from '../../../lib/mascara';
 
 const ROLES: { value: Rol; label: string }[] = [
   { value: 'ASESOR', label: 'Asesor' },
@@ -62,7 +64,7 @@ export function UsuarioForm({
       rol: usuario?.rol ?? 'ASESOR',
       iniciales: usuario?.iniciales ?? '',
       sucursalId: usuario?.sucursalId ?? '',
-      telefono: usuario?.telefono ?? '',
+      telefono: formatTelefono(usuario?.telefono),
       activo: usuario?.activo ?? true,
       password: '',
     },
@@ -156,7 +158,14 @@ export function UsuarioForm({
           />
         </Field>
         <Field label="Teléfono" htmlFor="telefono" error={errors.telefono?.message}>
-          <Input id="telefono" {...register('telefono')} />
+          <Input
+            id="telefono"
+            type="tel"
+            inputMode="tel"
+            placeholder="998-123-4567"
+            className="font-mono"
+            {...conMascara(register('telefono'), maskTelefono)}
+          />
         </Field>
       </div>
 
