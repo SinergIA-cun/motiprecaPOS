@@ -34,21 +34,29 @@ export function CobroModal({
   onClose,
   onConfirm,
 }: Props) {
-  const sugerido = round2(anticipoSugerido ?? total);
-
   const [metodo, setMetodo] = useState<MetodoPago>('EFECTIVO');
   const [recibido, setRecibido] = useState('');
   const [referencia, setReferencia] = useState('');
-  // Arranca en el anticipo sugerido; el cajero lo puede cambiar libremente.
-  const [montoStr, setMontoStr] = useState(String(montoLibre ? sugerido : total));
 
-  const monto = montoLibre ? round2(Number(montoStr) || 0) : total;
+  const esEfectivo = metodo === 'EFECTIVO';
+  // En efectivo redondeamos a peso entero: no existen centavos en el cajón.
+  // Sólo aplica a los montos que el cajero elige (anticipo/abono); el total de
+  // venta conserva sus centavos del IVA.
+  const aPeso = (n: number) => Math.round(n);
+  const rawSugerido = round2(anticipoSugerido ?? total);
+  const sugerido = esEfectivo && montoLibre ? aPeso(rawSugerido) : rawSugerido;
+
+  // Arranca en el anticipo sugerido (redondeado si el método por defecto es
+  // efectivo); el cajero lo puede cambiar libremente.
+  const [montoStr, setMontoStr] = useState(String(montoLibre ? aPeso(rawSugerido) : total));
+
+  const montoLibreNum = esEfectivo ? aPeso(Number(montoStr) || 0) : round2(Number(montoStr) || 0);
+  const monto = montoLibre ? montoLibreNum : total;
   const montoValido = monto > 0 && monto <= total;
   const saldo = round2(total - monto);
   const bajoAnticipo = montoLibre && monto > 0 && monto < sugerido;
 
-  const esEfectivo = metodo === 'EFECTIVO';
-  const recibidoNum = Number(recibido) || 0;
+  const recibidoNum = esEfectivo ? aPeso(Number(recibido) || 0) : Number(recibido) || 0;
   const cambio = round2(recibidoNum - monto);
   const puedeConfirmar = !pending && montoValido && (esEfectivo ? recibidoNum >= monto : true);
 
@@ -63,13 +71,17 @@ export function CobroModal({
             <Input
               id="monto-cobrar"
               type="number"
-              min="0.01"
+              min={esEfectivo ? '1' : '0.01'}
               max={total}
-              step="0.01"
-              inputMode="decimal"
+              step={esEfectivo ? '1' : '0.01'}
+              inputMode={esEfectivo ? 'numeric' : 'decimal'}
               className="font-mono text-lg"
               value={montoStr}
+              // En efectivo redondeamos al peso al salir del campo (no hay centavos en caja).
               onChange={(e) => setMontoStr(e.target.value)}
+              onBlur={() =>
+                esEfectivo && montoStr && setMontoStr(String(aPeso(Number(montoStr) || 0)))
+              }
               aria-invalid={!montoValido}
             />
             <div className="flex flex-wrap justify-between gap-2 rounded-lg bg-paper px-4 py-2 text-xs text-slate-500">
