@@ -11,8 +11,8 @@ import { ApiError, type CotizacionDetail, type Producto, type Unidad } from '../
 import { formatMoney } from '../../lib/format';
 import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSucursales } from '../admin/hooks';
+import { ClienteBuscador } from '../clientes/ClienteBuscador';
 import { CreditoPanel } from '../clientes/CreditoPanel';
-import { useClientes } from '../clientes/hooks';
 import { ProductoPicker } from './ProductoPicker';
 import { useCotizacion, useCreateCotizacion, useUpdateCotizacion } from './hooks';
 
@@ -52,7 +52,6 @@ export function CotizacionBuilderPage() {
 function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: clientes } = useClientes({ activo: true });
   const { data: sucursales } = useSucursales();
   const createMut = useCreateCotizacion();
   const updateMut = useUpdateCotizacion();
@@ -175,18 +174,11 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
           <section className="rounded-xl border border-slate-200 bg-white p-6">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Field label="Cliente" htmlFor="cliente">
-                <Select
-                  id="cliente"
+                <ClienteBuscador
                   value={clienteId}
-                  onChange={(e) => setClienteId(e.target.value)}
-                >
-                  <option value="">Selecciona un cliente…</option>
-                  {clientes?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </Select>
+                  initialLabel={editCot?.cliente.nombre}
+                  onSelect={(c) => setClienteId(c?.id ?? '')}
+                />
               </Field>
               <Field label="Sucursal" htmlFor="sucursal">
                 <Select
