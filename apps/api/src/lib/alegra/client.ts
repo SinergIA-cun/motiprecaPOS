@@ -42,34 +42,134 @@ function authHeader(): string {
   return `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
 }
 
-async function alegraGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${env.ALEGRA_API_URL}${path}`, {
-    headers: { Authorization: authHeader(), Accept: 'application/json' },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Alegra GET ${path} → ${res.status}: ${body.slice(0, 300)}`);
-  }
-  return (await res.json()) as T;
+// ---- Serialización y reintentos ----
+// Dos mecanismos, ambos necesarios (medido contra el Alegra real):
+//
+// 1) SERIALIZACIÓN: dejamos UNA sola solicitud en vuelo a la vez. Sin esto, el
+//    sync disparaba contactos e items en paralelo y, como cada request tarda
+//    ~4.5 s, se apilaban ~10 en vuelo y Alegra las rechazaba con 429.
+//
+// 2) REINTENTO HONRANDO `reset`: aun en serie, /contacts tiene un límite de
+//    RÁFAGA de ventana corta (deja pasar ~5 páginas y luego 429, aunque quede
+//    cupo de la ventana de 100/min). Alegra dice en `reset` cuántos segundos
+//    faltan para reabrir; esperamos eso y reintentamos. Un backoff corto NO
+//    alcanza —se midió—.
+//
+// Ojo: Alegra a veces envuelve el 429 como HTTP 400 con `"code":429` en el
+// cuerpo, y la info del límite viaja en el cuerpo, no en headers.
+
+const MAX_REINTENTOS = 5;
+const ESPERA_MAX_MS = 35_000;
+const TIMEOUT_MS = 25_000;
+
+function dormir(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function alegraWrite<T>(method: 'POST' | 'PUT', path: string, payload: unknown): Promise<T> {
-  const res = await fetch(`${env.ALEGRA_API_URL}${path}`, {
-    method,
-    headers: {
-      Authorization: authHeader(),
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Alegra ${method} ${path} → ${res.status}: ${body.slice(0, 300)}`);
+// Cola de un solo carril: cada solicitud corre completa (fetch incluido) antes
+// de soltar el turno a la siguiente. Garantiza una sola request en vuelo aunque
+// haya llamados concurrentes (contactos e items del sync, o un chequeo de
+// crédito durante el barrido). Un fallo no rompe la cadena: el turno se libera
+// igual.
+let cola: Promise<unknown> = Promise.resolve();
+function enSerie<T>(fn: () => Promise<T>): Promise<T> {
+  const resultado = cola.then(fn, fn);
+  cola = resultado.then(
+    () => undefined,
+    () => undefined,
+  );
+  return resultado;
+}
+
+interface RateInfo {
+  esLimite: boolean;
+  remaining: number | null;
+  reset: number | null; // segundos hasta que se reabre la ventana
+}
+
+function aNumero(v: unknown): number | null {
+  // Ojo: Number(null) === 0 y Number('') === 0, así que hay que descartar
+  // vacíos ANTES de convertir; si no, un header ausente se leería como 0 y
+  // taparía el valor real que viene en el cuerpo (bug real que teníamos).
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** ¿La respuesta es un rate-limit? Alegra lo manda como status 429 o como 400
+ *  con `"code":429` y la info del límite dentro del cuerpo (no en headers). */
+function leerRate(res: Response, body: string): RateInfo {
+  let remaining = aNumero(res.headers.get('x-rate-limit-remaining'));
+  let reset = aNumero(res.headers.get('x-rate-limit-reset'));
+  let code: number | null = null;
+  try {
+    const j = JSON.parse(body) as {
+      code?: number;
+      headers?: Record<string, unknown>;
+    };
+    code = aNumero(j.code);
+    if (j.headers) {
+      remaining = remaining ?? aNumero(j.headers['x-rate-limit-remaining']);
+      reset = reset ?? aNumero(j.headers['x-rate-limit-reset']);
+    }
+  } catch {
+    // cuerpo no-JSON: nos quedamos con lo de los headers
   }
-  return (await res.json()) as T;
+  const esLimite =
+    res.status === 429 || code === 429 || remaining === 0 || /too many requests/i.test(body);
+  return { esLimite, remaining, reset };
+}
+
+/** Cuánto esperar antes de reintentar. Alegra nos dice en `reset` cuántos
+ *  segundos faltan para que se reabra la ventana; lo honramos (con tope) porque
+ *  el límite de ráfaga de /contacts solo se libera al reabrirse —un backoff
+ *  corto no alcanza, como se midió—. Sin `reset`, backoff exponencial. */
+function esperaTrasLimite(info: RateInfo, intento: number): number {
+  if (info.reset && info.reset > 0) {
+    return Math.min(info.reset * 1000 + 500, ESPERA_MAX_MS);
+  }
+  return Math.min(1000 * 2 ** intento, ESPERA_MAX_MS);
+}
+
+async function ejecutar<T>(
+  method: 'GET' | 'POST' | 'PUT',
+  path: string,
+  payload?: unknown,
+): Promise<T> {
+  const headers: Record<string, string> = {
+    Authorization: authHeader(),
+    Accept: 'application/json',
+  };
+  if (payload !== undefined) headers['Content-Type'] = 'application/json';
+  const body = payload !== undefined ? JSON.stringify(payload) : undefined;
+
+  for (let intento = 0; ; intento += 1) {
+    // Signal nuevo por intento: AbortSignal.timeout cuenta desde su creación y
+    // no se puede reusar tras un reintento.
+    const res = await fetch(`${env.ALEGRA_API_URL}${path}`, {
+      method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (res.ok) return (await res.json()) as T;
+
+    const texto = await res.text();
+    const rate = leerRate(res, texto);
+    if (rate.esLimite && intento < MAX_REINTENTOS) {
+      await dormir(esperaTrasLimite(rate, intento));
+      continue;
+    }
+    throw new Error(`Alegra ${method} ${path} → ${res.status}: ${texto.slice(0, 300)}`);
+  }
+}
+
+function alegraGet<T>(path: string): Promise<T> {
+  return enSerie(() => ejecutar<T>('GET', path));
+}
+
+function alegraWrite<T>(method: 'POST' | 'PUT', path: string, payload: unknown): Promise<T> {
+  return enSerie(() => ejecutar<T>(method, path, payload));
 }
 
 export function fetchContacts(limit = 30, start = 0): Promise<AlegraContact[]> {
