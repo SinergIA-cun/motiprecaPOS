@@ -27,8 +27,24 @@ export async function cajaRoutes(app: FastifyInstance): Promise<void> {
       include: {
         sucursal: { select: { id: true, nombre: true } },
         cliente: { select: { nombre: true } },
+        // Solo los pagos en efectivo: es lo que de verdad hay en el cajón.
+        pagos: { where: { metodoPago: 'EFECTIVO' }, select: { monto: true } },
       },
     });
+
+    // El efectivo en caja es la SUMA DE LOS PAGOS EN EFECTIVO, no el total de
+    // la venta: si el cliente dio un anticipo o hubo cambio, en el cajón está
+    // lo cobrado, no lo pactado. (Antes se sumaba v.total y por eso la caja
+    // mostraba de más.)
+    const movimientos = ventas.map((v) => ({
+      id: v.id,
+      folio: v.folio,
+      createdAt: v.createdAt,
+      sucursal: v.sucursal.nombre,
+      cliente: v.cliente?.nombre ?? null,
+      efectivo: round2(v.pagos.reduce((s, p) => s + Number(p.monto), 0)),
+      totalVenta: round2(Number(v.total)), // referencia: total pactado de la venta
+    }));
 
     // Agregación en memoria (dataset pequeño): por sucursal + mes (YYYY-MM).
     const grupos = new Map<
@@ -36,13 +52,14 @@ export async function cajaRoutes(app: FastifyInstance): Promise<void> {
       { sucursal: string; mes: string; total: number; count: number }
     >();
     let totalGeneral = 0;
-    for (const v of ventas) {
-      const total = Number(v.total);
-      totalGeneral += total;
+    for (let i = 0; i < ventas.length; i += 1) {
+      const v = ventas[i]!;
+      const efectivo = movimientos[i]!.efectivo;
+      totalGeneral += efectivo;
       const mes = v.createdAt.toISOString().slice(0, 7);
       const key = `${v.sucursal.id}|${mes}`;
       const acc = grupos.get(key) ?? { sucursal: v.sucursal.nombre, mes, total: 0, count: 0 };
-      acc.total += total;
+      acc.total += efectivo;
       acc.count += 1;
       grupos.set(key, acc);
     }
@@ -51,14 +68,7 @@ export async function cajaRoutes(app: FastifyInstance): Promise<void> {
       data: {
         totalGeneral: round2(totalGeneral),
         resumen: [...grupos.values()].map((g) => ({ ...g, total: round2(g.total) })),
-        movimientos: ventas.map((v) => ({
-          id: v.id,
-          folio: v.folio,
-          createdAt: v.createdAt,
-          sucursal: v.sucursal.nombre,
-          cliente: v.cliente?.nombre ?? null,
-          total: v.total,
-        })),
+        movimientos,
       },
     };
   });

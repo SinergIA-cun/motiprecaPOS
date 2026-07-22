@@ -44,7 +44,40 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit, withAuth: boolean): Promise<T> {
+// El access token vive ~15 min en memoria. Cuando expira, en vez de mandar al
+// usuario a login lo renovamos en silencio con la cookie de refresh y
+// reintentamos la petición. Una sola renovación se comparte entre todas las
+// peticiones que expiraron a la vez (evita rotar el refresh token en paralelo).
+let refreshEnCurso: Promise<boolean> | null = null;
+
+async function renovarSesion(): Promise<boolean> {
+  if (!refreshEnCurso) {
+    refreshEnCurso = (async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (!res.ok) return false;
+        const data = (await res.json()) as AuthResponse;
+        useAuthStore.getState().setSession(data.accessToken, data.user);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshEnCurso = null;
+      }
+    })();
+  }
+  return refreshEnCurso;
+}
+
+async function request<T>(
+  path: string,
+  init: RequestInit,
+  withAuth: boolean,
+  yaReintentado = false,
+): Promise<T> {
   const token = useAuthStore.getState().accessToken;
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
@@ -57,6 +90,16 @@ async function request<T>(path: string, init: RequestInit, withAuth: boolean): P
       ...init.headers,
     },
   });
+
+  // Token expirado: renovamos una vez y reintentamos. No aplica a los propios
+  // endpoints de /auth (evita bucle) ni si ya reintentamos.
+  if (res.status === 401 && withAuth && !yaReintentado && !path.startsWith('/auth/')) {
+    const ok = await renovarSesion();
+    if (ok) return request<T>(path, init, withAuth, true);
+    // El refresh también falló (cookie vencida/revocada): cerramos sesión para
+    // que la UI mande a login en vez de dejar peticiones fallando en silencio.
+    useAuthStore.getState().clear();
+  }
 
   if (!res.ok) {
     let code = 'ERROR';
@@ -512,7 +555,8 @@ export interface CajaMovimiento {
   createdAt: string;
   sucursal: string;
   cliente: string | null;
-  total: string;
+  efectivo: number; // lo que hay en el cajón por esta venta (pagos en efectivo)
+  totalVenta: number; // total pactado de la venta (referencia)
 }
 
 export interface CajaEfectivo {

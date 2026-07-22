@@ -124,7 +124,7 @@ export function CajaPage() {
                         <Th>Fecha</Th>
                         <Th>Sucursal</Th>
                         <Th>Cliente</Th>
-                        <Th className="text-right">Total</Th>
+                        <Th className="text-right">Efectivo</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -139,7 +139,12 @@ export function CajaPage() {
                           <td className="px-3 py-3 text-slate-600">{m.sucursal}</td>
                           <td className="px-3 py-3 text-slate-600">{m.cliente ?? '—'}</td>
                           <td className="px-5 py-3 text-right font-mono text-navy-800">
-                            {formatMoney(m.total)}
+                            {formatMoney(m.efectivo)}
+                            {m.totalVenta > m.efectivo ? (
+                              <span className="block text-[0.68rem] font-normal text-slate-400">
+                                de {formatMoney(m.totalVenta)} venta
+                              </span>
+                            ) : null}
                           </td>
                         </tr>
                       ))}
