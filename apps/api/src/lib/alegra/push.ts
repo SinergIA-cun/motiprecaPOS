@@ -4,8 +4,12 @@
 // Regla de oro: si Alegra falla, el cliente NO se pierde ni se bloquea el alta
 // local. Se marca estadoSync=ERROR y el barrido de reconciliación reintenta.
 import { EstadoSync, prisma } from '@motipreca/database';
-import { alegraConfigurado, createContact, updateContact } from './client.js';
+import { type AlegraError, alegraConfigurado, createContact, updateContact } from './client.js';
 import { mapClienteToContact } from './mapper.js';
+
+// Alegra rechaza un RFC repetido con este código y nos dice el id del contacto
+// que ya existe. En vez de fallar, lo vinculamos: el cliente ya está en Alegra.
+const CODIGO_RFC_DUPLICADO = 2006;
 
 interface ClientePush {
   id: string;
@@ -46,7 +50,22 @@ export async function pushClienteAAlegra(
     });
     return { ok: true, alegraId };
   } catch (err) {
-    // Marcamos para reintento; el alta local ya ocurrió y se respeta.
+    // RFC ya registrado en Alegra: no es un error, el contacto existe. Lo
+    // vinculamos al id que la propia Alegra nos devuelve.
+    const alegraErr = err as AlegraError;
+    if (alegraErr?.body?.code === CODIGO_RFC_DUPLICADO && alegraErr.body.contactId != null) {
+      const alegraId = String(alegraErr.body.contactId);
+      await prisma.cliente
+        .update({
+          where: { id: cliente.id },
+          data: { alegraId, estadoSync: EstadoSync.SINCRONIZADO },
+        })
+        .catch(() => undefined);
+      return { ok: true, alegraId };
+    }
+
+    // Cualquier otro fallo: marcamos para reintento; el alta local ya ocurrió
+    // y se respeta.
     await prisma.cliente
       .update({ where: { id: cliente.id }, data: { estadoSync: EstadoSync.ERROR } })
       .catch(() => undefined);

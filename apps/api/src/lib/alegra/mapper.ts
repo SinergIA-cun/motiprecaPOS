@@ -62,6 +62,10 @@ export function mapContactToCliente(contact: AlegraContact) {
  *  debe ajustarlo antes de facturar. */
 export const REGIMEN_DEFAULT = 'SIMPLIFIED_REGIME';
 
+/** País por defecto (código de Alegra). Motipreca opera en México; Alegra exige
+ *  el país en la dirección al crear el contacto. */
+export const PAIS_DEFAULT = 'MEX';
+
 interface ClienteParaAlegra {
   nombre: string;
   rfc?: string | null;
@@ -79,6 +83,7 @@ export function mapClienteToContact(cliente: ClienteParaAlegra): AlegraContactPa
     type: ['client'],
     regime: REGIMEN_DEFAULT,
     thirdType: 'NATIONAL',
+    address: { country: PAIS_DEFAULT },
   };
 }
 

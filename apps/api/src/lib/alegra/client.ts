@@ -160,8 +160,25 @@ async function ejecutar<T>(
       await dormir(esperaTrasLimite(rate, intento));
       continue;
     }
-    throw new Error(`Alegra ${method} ${path} → ${res.status}: ${texto.slice(0, 300)}`);
+    // Adjuntamos status y cuerpo parseado al error para que el llamador pueda
+    // reaccionar (p. ej. RFC duplicado → vincular al contacto que ya existe).
+    const err = new Error(
+      `Alegra ${method} ${path} → ${res.status}: ${texto.slice(0, 300)}`,
+    ) as AlegraError;
+    err.status = res.status;
+    try {
+      err.body = JSON.parse(texto);
+    } catch {
+      err.body = undefined;
+    }
+    throw err;
   }
+}
+
+/** Error de Alegra con el status y el cuerpo parseado, para reaccionar al código. */
+export interface AlegraError extends Error {
+  status?: number;
+  body?: { code?: number; message?: string; contactId?: string | number } & Record<string, unknown>;
 }
 
 function alegraGet<T>(path: string): Promise<T> {
@@ -190,6 +207,10 @@ export interface AlegraContactPayload {
   type: string[];
   regime?: string;
   thirdType?: string;
+  // Alegra exige el país en la dirección al crear un contacto ("El país es
+  // obligatorio", code 2008). Motipos aún no captura domicilio, así que va el
+  // país por defecto y contabilidad completa el resto antes de facturar.
+  address?: { country: string };
 }
 
 export function createContact(payload: AlegraContactPayload): Promise<AlegraContact> {

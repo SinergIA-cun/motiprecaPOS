@@ -9,6 +9,7 @@ import { env } from './lib/env.js';
 import { AppError } from './lib/errors.js';
 import { redis } from './lib/redis.js';
 import { authRoutes } from './routes/auth.js';
+import { reintentarClientesPendientes } from './lib/alegra/push.js';
 import { asegurarSuscripciones, barridoReconciliacion } from './lib/alegra/suscripciones.js';
 import { cajaRoutes } from './routes/caja.js';
 import { clienteRoutes } from './routes/clientes.js';
@@ -187,6 +188,14 @@ void asegurarSuscripciones(app.log, {
   apiPublicUrl: env.API_PUBLIC_URL,
   secreto: env.ALEGRA_WEBHOOK_SECRET,
 });
+// Al arrancar reintentamos empujar los clientes que quedaron pendientes/error
+// (barato: solo re-empuja los que fallaron). Así un despliegue sana de
+// inmediato los clientes que no se sincronizaron, sin esperar al barrido.
+void reintentarClientesPendientes()
+  .then((r) => {
+    if (r.ok || r.fallidos) app.log.info(r, 'Reintento de clientes pendientes con Alegra');
+  })
+  .catch((err: unknown) => app.log.warn({ err }, 'Reintento de clientes pendientes falló'));
 setInterval(() => void barridoReconciliacion(app.log), 6 * 60 * 60 * 1000); // cada 6 h
 
 try {
