@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AdminRoute } from './components/AdminRoute';
+import { GerenciaRoute } from './components/GerenciaRoute';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PublicOnlyRoute } from './components/PublicOnlyRoute';
 import { LoginPage } from './features/auth/LoginPage';
@@ -14,6 +15,8 @@ import { POSPage } from './features/pos/POSPage';
 import { TicketPage } from './features/pos/TicketPage';
 import { ProductosPage } from './features/productos/ProductosPage';
 import { VerificarPage } from './features/publico/VerificarPage';
+import { EquivalenciasPage } from './features/admin/catalogo/EquivalenciasPage';
+import { SincronizacionPage } from './features/admin/catalogo/SincronizacionPage';
 import { ReglasAprobacionPage } from './features/admin/reglas/ReglasAprobacionPage';
 import { SucursalesPage } from './features/admin/sucursales/SucursalesPage';
 import { UsuariosPage } from './features/admin/usuarios/UsuariosPage';
@@ -42,6 +45,14 @@ export const router = createBrowserRouter([
           { path: '/cotizaciones/nueva', element: <CotizacionBuilderPage /> },
           { path: '/cotizaciones/:id', element: <CotizacionDetailPage /> },
           { path: '/cotizaciones/:id/editar', element: <CotizacionBuilderPage /> },
+          {
+            // Catálogo: la API las abre a gerencia, no solo a Administrador.
+            element: <GerenciaRoute />,
+            children: [
+              { path: '/admin/sincronizacion', element: <SincronizacionPage /> },
+              { path: '/admin/equivalencias', element: <EquivalenciasPage /> },
+            ],
+          },
           {
             element: <AdminRoute />,
             children: [

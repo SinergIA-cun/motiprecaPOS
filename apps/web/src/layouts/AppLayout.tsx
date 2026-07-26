@@ -4,6 +4,8 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  RefreshCw,
+  Ruler,
   ShieldCheck,
   Store,
   UserCog,
@@ -35,6 +37,24 @@ const NAV_OPERACION: NavEntry[] = [
   { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText, ready: true },
   { to: '/clientes', label: 'Clientes', icon: Users, ready: true },
   { to: '/productos', label: 'Productos', icon: Package, ready: true },
+];
+
+/** Catálogo: la API abre estas dos a gerencia, no solo a Administrador. */
+const NAV_CATALOGO: NavEntry[] = [
+  {
+    to: '/admin/sincronizacion',
+    label: 'Sincronización Alegra',
+    icon: RefreshCw,
+    ready: true,
+    roles: ['GERENTE', 'ADMINISTRADOR'],
+  },
+  {
+    to: '/admin/equivalencias',
+    label: 'Equivalencias m²',
+    icon: Ruler,
+    ready: true,
+    roles: ['GERENTE', 'ADMINISTRADOR'],
+  },
 ];
 
 const NAV_ADMIN: NavEntry[] = [
@@ -95,9 +115,9 @@ export function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.rol === 'ADMINISTRADOR';
-  const operacion = NAV_OPERACION.filter(
-    (e) => !e.roles || (user ? e.roles.includes(user.rol) : false),
-  );
+  const porRol = (e: NavEntry) => !e.roles || (user ? e.roles.includes(user.rol) : false);
+  const operacion = NAV_OPERACION.filter(porRol);
+  const catalogo = NAV_CATALOGO.filter(porRol);
 
   async function handleLogout() {
     await logout();
@@ -118,6 +138,7 @@ export function AppLayout() {
 
         <nav className="flex-1 px-3 py-5">
           <NavGroup title="Operación" items={operacion} />
+          {catalogo.length > 0 ? <NavGroup title="Catálogo" items={catalogo} /> : null}
           {isAdmin ? <NavGroup title="Administración" items={NAV_ADMIN} /> : null}
         </nav>
 
