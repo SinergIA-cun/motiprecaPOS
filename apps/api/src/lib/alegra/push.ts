@@ -18,6 +18,11 @@ interface ClientePush {
   email: string | null;
   telefono: string | null;
   alegraId: string | null;
+  // Datos fiscales: son la razón de ser del push. Sin ellos Alegra no timbra.
+  razonSocial?: string | null;
+  regimenFiscal?: string | null;
+  codigoPostalFiscal?: string | null;
+  usoCFDI?: string | null;
 }
 
 /**
@@ -79,7 +84,18 @@ export async function reintentarClientesPendientes(): Promise<{ ok: number; fall
 
   const pendientes = await prisma.cliente.findMany({
     where: { estadoSync: { in: [EstadoSync.ERROR, EstadoSync.PENDIENTE] }, activo: true },
-    select: { id: true, nombre: true, rfc: true, email: true, telefono: true, alegraId: true },
+    select: {
+      id: true,
+      nombre: true,
+      rfc: true,
+      email: true,
+      telefono: true,
+      alegraId: true,
+      razonSocial: true,
+      regimenFiscal: true,
+      codigoPostalFiscal: true,
+      usoCFDI: true,
+    },
     take: 50,
   });
   let ok = 0;

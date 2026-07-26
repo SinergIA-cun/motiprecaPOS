@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { CreateClienteInput, UpdateClienteInput } from '@motipreca/shared';
-import { useForm } from 'react-hook-form';
+import { USOS_CFDI, USO_CFDI_DEFAULT, regimenesPara } from '@motipreca/shared';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
@@ -27,6 +28,16 @@ const formSchema = z.object({
   notas: z.string().trim().optional(),
   activo: z.boolean().optional(),
   lineaCredito: z.string().trim().optional(), // solo gerencia; '' = sin crédito
+  // ---- Datos fiscales (CFDI 4.0). Opcionales: un cliente de mostrador que no
+  // pide factura no tiene por qué traerlos. Alegra los necesita para timbrar.
+  razonSocial: z.string().trim().optional(),
+  regimenFiscal: z.string().trim().optional(),
+  codigoPostalFiscal: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^\d{5}$/.test(v), 'Debe tener 5 dígitos')
+    .optional(),
+  usoCFDI: z.string().trim().optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -53,6 +64,7 @@ export function ClienteForm({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -69,8 +81,16 @@ export function ClienteForm({
         cliente?.lineaCredito != null
           ? formatMontoEntero(String(Number(cliente.lineaCredito)))
           : '',
+      razonSocial: cliente?.razonSocial ?? '',
+      regimenFiscal: cliente?.regimenFiscal ?? '',
+      codigoPostalFiscal: cliente?.codigoPostalFiscal ?? '',
+      usoCFDI: cliente?.usoCFDI ?? USO_CFDI_DEFAULT,
     },
   });
+
+  // Los regímenes válidos dependen de si es persona física o moral.
+  const tipoActual = useWatch({ control, name: 'tipo' }) ?? cliente?.tipo ?? 'INDIVIDUAL';
+  const regimenes = regimenesPara(tipoActual);
 
   const submit = handleSubmit((v) => {
     const base = {
@@ -81,6 +101,10 @@ export function ClienteForm({
       rfc: v.rfc ? v.rfc.toUpperCase() : undefined,
       notas: v.notas ? v.notas : undefined,
       sucursalId: v.sucursalId ? v.sucursalId : null,
+      razonSocial: v.razonSocial ? v.razonSocial : undefined,
+      regimenFiscal: v.regimenFiscal ? v.regimenFiscal : undefined,
+      codigoPostalFiscal: v.codigoPostalFiscal ? v.codigoPostalFiscal : undefined,
+      usoCFDI: v.usoCFDI ? v.usoCFDI : undefined,
       // El backend rechaza este campo si el rol no es gerencia; no lo mandamos.
       ...(esGerencia ? { lineaCredito: parseMontoEntero(v.lineaCredito ?? '') } : {}),
     };
@@ -89,7 +113,7 @@ export function ClienteForm({
 
   return (
     <form onSubmit={submit} noValidate>
-      <Field label="Nombre o razón social" htmlFor="nombre" error={errors.nombre?.message}>
+      <Field label="Nombre comercial" htmlFor="nombre" error={errors.nombre?.message}>
         <Input
           id="nombre"
           autoFocus
@@ -154,6 +178,68 @@ export function ClienteForm({
           </Field>
         ) : null}
       </div>
+
+      {/* Datos fiscales: sin esto Alegra no puede timbrar el CFDI. */}
+      <fieldset className="mb-5 rounded-lg border border-slate-200 bg-paper px-4 py-4">
+        <legend className="px-1.5 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-slate-500">
+          Datos de facturación
+        </legend>
+        <p className="mb-3 text-xs text-slate-500">
+          Necesarios solo si el cliente va a pedir factura. La factura se emite en Alegra, pero
+          estos datos viajan desde aquí.
+        </p>
+
+        <Field
+          label="Razón social (como en la Constancia de Situación Fiscal)"
+          htmlFor="razonSocial"
+          error={errors.razonSocial?.message}
+        >
+          <Input id="razonSocial" {...register('razonSocial')} placeholder="Igual que en el SAT" />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Régimen fiscal"
+            htmlFor="regimenFiscal"
+            error={errors.regimenFiscal?.message}
+          >
+            <Select id="regimenFiscal" {...register('regimenFiscal')}>
+              <option value="">Sin especificar</option>
+              {regimenes.map((r) => (
+                <option key={r.clave} value={r.clave}>
+                  {r.clave} — {r.nombre}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label="Código postal fiscal"
+            htmlFor="codigoPostalFiscal"
+            error={errors.codigoPostalFiscal?.message}
+          >
+            <Input
+              id="codigoPostalFiscal"
+              inputMode="numeric"
+              maxLength={5}
+              placeholder="77500"
+              className="font-mono"
+              {...register('codigoPostalFiscal')}
+              aria-invalid={Boolean(errors.codigoPostalFiscal)}
+            />
+          </Field>
+        </div>
+
+        <Field label="Uso del CFDI" htmlFor="usoCFDI" error={errors.usoCFDI?.message}>
+          <Select id="usoCFDI" {...register('usoCFDI')}>
+            <option value="">Sin especificar</option>
+            {USOS_CFDI.map((u) => (
+              <option key={u.clave} value={u.clave}>
+                {u.clave} — {u.nombre}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </fieldset>
 
       <Field label="Notas" htmlFor="notas" error={errors.notas?.message}>
         <Textarea id="notas" rows={3} {...register('notas')} />

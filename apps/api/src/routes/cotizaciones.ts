@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify';
 import { descuentoPctEfectivo, evaluarAprobacion } from '../lib/aprobacion.js';
 import { creditoDeCliente } from '../lib/credito.js';
 import { conflict, notFound, unauthorized, validationError } from '../lib/errors.js';
+import { resolverCantidad } from '../lib/partidas.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 
@@ -40,36 +41,49 @@ async function reglaNivel1() {
 const IVA_RATE = 0.16;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Valida productos, toma snapshot de descripción y calcula partidas + totales. */
+/** Valida productos, toma snapshot de descripción y calcula partidas + totales.
+ *
+ *  Cuando la partida se capturó en m², las piezas se calculan AQUÍ desde la
+ *  equivalencia del producto — nunca se toma la `cantidad` que mandó el
+ *  navegador. Ver lib/partidas.ts. */
 async function calcularPartidas(
   itemsInput: {
     productoId: string;
-    cantidad: number;
+    cantidad?: number;
     precioUnitario: number;
     descuentoPct: number;
+    unidadCaptura: 'PZA' | 'M2';
+    cantidadM2?: number;
+    mermaPct: number;
   }[],
 ) {
   const productoIds = [...new Set(itemsInput.map((i) => i.productoId))];
   const productos = await prisma.producto.findMany({
     where: { id: { in: productoIds } },
-    select: { id: true, nombre: true },
+    select: { id: true, nombre: true, unidad: true, piezasPorM2: true },
   });
-  const prodMap = new Map(productos.map((p) => [p.id, p.nombre]));
+  const prodMap = new Map(productos.map((p) => [p.id, p]));
   for (const it of itemsInput) {
     if (!prodMap.has(it.productoId)) throw validationError('Un producto seleccionado no existe');
   }
   const items = itemsInput.map((it, idx) => {
-    const base = it.cantidad * it.precioUnitario;
+    const prod = prodMap.get(it.productoId);
+    if (!prod) throw validationError('Un producto seleccionado no existe');
+    const captura = resolverCantidad(it, prod);
+    const base = captura.cantidad * it.precioUnitario;
     const importe = round2(base * (1 - it.descuentoPct / 100));
     return {
       productoId: it.productoId,
-      descripcion: prodMap.get(it.productoId) ?? '',
-      cantidad: it.cantidad,
+      descripcion: prod.nombre,
+      cantidad: captura.cantidad,
       precioUnitario: it.precioUnitario,
       descuentoPct: it.descuentoPct,
       importe,
       orden: idx,
       base,
+      unidadCaptura: captura.unidadCaptura,
+      cantidadM2: captura.cantidadM2,
+      mermaPct: captura.mermaPct,
     };
   });
   const subtotal = round2(items.reduce((s, i) => s + i.importe, 0));
@@ -137,7 +151,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
       include: {
         items: {
           orderBy: { orden: 'asc' },
-          include: { producto: { select: { unidad: true } } },
+          include: { producto: { select: { unidad: true, piezasPorM2: true } } },
         },
         cliente: true,
         sucursal: { select: { id: true, nombre: true, prefijoFolio: true } },
@@ -236,6 +250,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           vigenciaHasta,
           anticipoPct: d.anticipoPct,
           observaciones: d.observaciones ?? null,
+          requiereFactura: d.requiereFactura,
           items: {
             create: items.map((i) => ({
               productoId: i.productoId,
@@ -245,6 +260,9 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
               descuentoPct: i.descuentoPct,
               importe: i.importe,
               orden: i.orden,
+              unidadCaptura: i.unidadCaptura,
+              cantidadM2: i.cantidadM2,
+              mermaPct: i.mermaPct,
             })),
           },
         },
@@ -298,6 +316,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           vigenciaHasta,
           anticipoPct: d.anticipoPct,
           observaciones: d.observaciones ?? null,
+          requiereFactura: d.requiereFactura,
           items: {
             create: items.map((i) => ({
               productoId: i.productoId,
@@ -307,6 +326,9 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
               descuentoPct: i.descuentoPct,
               importe: i.importe,
               orden: i.orden,
+              unidadCaptura: i.unidadCaptura,
+              cantidadM2: i.cantidadM2,
+              mermaPct: i.mermaPct,
             })),
           },
         },
@@ -378,6 +400,7 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           vigenciaHasta,
           anticipoPct: original.anticipoPct,
           observaciones: original.observaciones,
+          requiereFactura: original.requiereFactura,
           items: {
             create: original.items.map((i) => ({
               productoId: i.productoId,
@@ -387,6 +410,9 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
               descuentoPct: i.descuentoPct,
               importe: i.importe,
               orden: i.orden,
+              unidadCaptura: i.unidadCaptura,
+              cantidadM2: i.cantidadM2,
+              mermaPct: i.mermaPct,
             })),
           },
         },
@@ -510,7 +536,10 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
     const saldo = round2(total - sumaPagos);
     const bajoAnticipo = sumaPagos < anticipoSugerido;
     // Efectivo puro y sin factura → entra al registro de caja en efectivo (auditable).
-    const esStandby = parsed.data.pagos.every((p) => p.metodoPago === 'EFECTIVO');
+    // Efectivo puro y SIN factura → registro de caja en efectivo (§8). Si la
+    // cotización pidió factura, el CFDI ya deja rastro y no entra aquí.
+    const esStandby =
+      parsed.data.pagos.every((p) => p.metodoPago === 'EFECTIVO') && !cot.requiereFactura;
 
     const venta = await prisma.$transaction(async (tx) => {
       const rango = await tx.rangoFolio.findUnique({
@@ -544,6 +573,9 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
           iva: cot.iva,
           total: cot.total,
           esStandby,
+          // La bandera de factura viene de la cotización: el cliente ya la pidió
+          // ahí, el cajero no la vuelve a decidir.
+          requiereFactura: cot.requiereFactura,
           items: {
             create: cot.items.map((i) => ({
               productoId: i.productoId,
@@ -553,6 +585,9 @@ export async function cotizacionRoutes(app: FastifyInstance): Promise<void> {
               descuentoPct: i.descuentoPct,
               importe: i.importe,
               orden: i.orden,
+              unidadCaptura: i.unidadCaptura,
+              cantidadM2: i.cantidadM2,
+              mermaPct: i.mermaPct,
             })),
           },
           pagos: {

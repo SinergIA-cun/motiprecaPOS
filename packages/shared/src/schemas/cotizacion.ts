@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { camposCaptura, validarCaptura } from './captura.js';
 
 const emptyToUndefined = (v: unknown): unknown => (v === '' ? undefined : v);
 
@@ -15,13 +16,19 @@ export const estadoCotizacionSchema = z.enum([
   'ELIMINADA',
 ]);
 
-/** Una partida de la cotización. `descripcion` se toma del producto en el backend. */
-export const itemCotizacionSchema = z.object({
-  productoId: z.string().min(1, 'Producto requerido'),
-  cantidad: z.coerce.number().positive('La cantidad debe ser mayor a 0'),
-  precioUnitario: z.coerce.number().min(0, 'Precio inválido'),
-  descuentoPct: z.coerce.number().min(0, 'Mínimo 0%').max(100, 'Máximo 100%').default(0),
-});
+/** Una partida de la cotización. `descripcion` se toma del producto en el backend.
+ *
+ *  `cantidad` (piezas) es opcional porque cuando se captura en m² la calcula el
+ *  servidor. Ver `camposCaptura` en schemas/captura.ts. */
+export const itemCotizacionSchema = z
+  .object({
+    productoId: z.string().min(1, 'Producto requerido'),
+    cantidad: z.coerce.number().positive('La cantidad debe ser mayor a 0').optional(),
+    precioUnitario: z.coerce.number().min(0, 'Precio inválido'),
+    descuentoPct: z.coerce.number().min(0, 'Mínimo 0%').max(100, 'Máximo 100%').default(0),
+    ...camposCaptura,
+  })
+  .superRefine(validarCaptura);
 
 /** Alta de cotización. Totales y folio los calcula el servidor. */
 export const createCotizacionSchema = z.object({
@@ -34,6 +41,9 @@ export const createCotizacionSchema = z.object({
     emptyToUndefined,
     z.string().trim().max(1000, 'Observaciones demasiado largas').optional(),
   ),
+  // ¿El cliente va a pedir factura? La factura se emite en Alegra; esto avisa
+  // que hace falta y obliga a que el cliente traiga datos fiscales completos.
+  requiereFactura: z.boolean().default(false),
   items: z.array(itemCotizacionSchema).min(1, 'Agrega al menos una partida'),
 });
 
@@ -50,6 +60,9 @@ export const updateCotizacionSchema = z.object({
     emptyToUndefined,
     z.string().trim().max(1000, 'Observaciones demasiado largas').optional(),
   ),
+  // ¿El cliente va a pedir factura? La factura se emite en Alegra; esto avisa
+  // que hace falta y obliga a que el cliente traiga datos fiscales completos.
+  requiereFactura: z.boolean().default(false),
   items: z.array(itemCotizacionSchema).min(1, 'Agrega al menos una partida'),
 });
 

@@ -36,6 +36,13 @@ const formSchema = z.object({
   precioBase: z
     .string()
     .refine((v) => v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0, 'Precio inválido'),
+  // '' = el producto no se vende por m². Cualquier otro valor debe ser > 0.
+  piezasPorM2: z
+    .string()
+    .refine(
+      (v) => v === '' || (Number.isFinite(Number(v)) && Number(v) > 0),
+      'Debe ser un número mayor a 0, o vacío si no se vende por m²',
+    ),
   activo: z.boolean().optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
@@ -64,6 +71,7 @@ export function ProductoForm({ producto, pending, errorMessage, onSubmit, onCanc
       unidad: producto?.unidad ?? 'PZA',
       tipoProducto: producto?.tipoProducto ?? 'BAJO_PEDIDO',
       precioBase: producto?.precioBase ?? '',
+      piezasPorM2: producto?.piezasPorM2 == null ? '' : String(Number(producto.piezasPorM2)),
       activo: producto?.activo ?? true,
     },
   });
@@ -77,6 +85,7 @@ export function ProductoForm({ producto, pending, errorMessage, onSubmit, onCanc
       unidad: v.unidad,
       tipoProducto: v.tipoProducto,
       precioBase: Number(v.precioBase),
+      piezasPorM2: v.piezasPorM2 === '' ? null : Number(v.piezasPorM2),
     };
     onSubmit(isEdit ? { ...base, activo: v.activo } : base);
   });
@@ -140,6 +149,29 @@ export function ProductoForm({ producto, pending, errorMessage, onSubmit, onCanc
           />
         </Field>
       </div>
+
+      <Field
+        label="Piezas por m² (opcional)"
+        htmlFor="piezasPorM2"
+        error={errors.piezasPorM2?.message}
+      >
+        <Input
+          id="piezasPorM2"
+          type="number"
+          step="0.0001"
+          min="0"
+          inputMode="decimal"
+          className="font-mono"
+          placeholder="Ej. 54 para adocreto huesito"
+          {...register('piezasPorM2')}
+          aria-invalid={Boolean(errors.piezasPorM2)}
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Cuántas piezas cubren 1 m². Al llenarlo, el cotizador y el POS permiten capturar la
+          cantidad en m² y calculan las piezas solas. Déjalo vacío si no aplica. Este dato es de
+          Motipos: Alegra no lo guarda.
+        </p>
+      </Field>
 
       {isEdit ? (
         <label className="mb-5 flex items-center gap-2.5 text-sm text-slate-700">

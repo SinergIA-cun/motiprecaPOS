@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { camposCaptura, validarCaptura } from './captura.js';
 
 const emptyToUndefined = (v: unknown): unknown => (v === '' ? undefined : v);
 
@@ -10,13 +11,19 @@ export const metodoPagoSchema = z.enum([
   'MIXTO',
 ]);
 
-/** Una partida del carrito POS. `descripcion` la toma el backend del producto. */
-export const itemVentaSchema = z.object({
-  productoId: z.string().min(1, 'Producto requerido'),
-  cantidad: z.coerce.number().positive('La cantidad debe ser mayor a 0'),
-  precioUnitario: z.coerce.number().min(0, 'Precio inválido'),
-  descuentoPct: z.coerce.number().min(0, 'Mínimo 0%').max(100, 'Máximo 100%').default(0),
-});
+/** Una partida del carrito POS. `descripcion` la toma el backend del producto.
+ *
+ *  Igual que en las cotizaciones: si se capturó en m², el servidor calcula las
+ *  piezas. Ver schemas/captura.ts. */
+export const itemVentaSchema = z
+  .object({
+    productoId: z.string().min(1, 'Producto requerido'),
+    cantidad: z.coerce.number().positive('La cantidad debe ser mayor a 0').optional(),
+    precioUnitario: z.coerce.number().min(0, 'Precio inválido'),
+    descuentoPct: z.coerce.number().min(0, 'Mínimo 0%').max(100, 'Máximo 100%').default(0),
+    ...camposCaptura,
+  })
+  .superRefine(validarCaptura);
 
 /** Un pago aplicado a la venta. La suma de pagos debe igualar el total. */
 export const pagoSchema = z.object({
@@ -35,6 +42,8 @@ export const createVentaSchema = z.object({
     (v: unknown) => (v === '' || v === undefined ? undefined : v),
     z.string().min(1).optional(),
   ),
+  // ¿El cliente pide factura? En mostrador es lo primero que se pregunta.
+  requiereFactura: z.boolean().default(false),
   items: z.array(itemVentaSchema).min(1, 'Agrega al menos un producto'),
   pagos: z.array(pagoSchema).min(1, 'Registra al menos un pago'),
 });

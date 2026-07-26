@@ -2,6 +2,20 @@
 // Autenticación HTTP Basic con email:token (variables ALEGRA_API_* del entorno).
 import { env } from '../env.js';
 
+/** Dirección de un contacto de Alegra. Campos verificados contra su API. */
+export interface AlegraAddress {
+  street?: string | null;
+  exteriorNumber?: string | null;
+  interiorNumber?: string | null;
+  colony?: string | null;
+  locality?: string | null;
+  municipality?: string | null;
+  /** CP del domicilio fiscal — obligatorio en el CFDI 4.0. */
+  zipCode?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
 export interface AlegraContact {
   id: string;
   name: string;
@@ -10,6 +24,11 @@ export interface AlegraContact {
   phonePrimary?: string | null;
   mobile?: string | null;
   type?: string[];
+  /** Enum propio de Alegra (ej. 'GENERAL_REGIME_OF_MORAL_PEOPLE_LAW'). */
+  regime?: string | null;
+  /** Clave del SAT (ej. 'G03'). */
+  cfdiUse?: string | null;
+  address?: AlegraAddress | null;
 }
 
 export interface AlegraItemPrice {
@@ -205,12 +224,16 @@ export interface AlegraContactPayload {
   email?: string;
   phonePrimary?: string;
   type: string[];
+  /** Enum de Alegra. Se OMITE cuando Motipos no tiene el régimen: mejor que
+   *  Alegra conserve el suyo a escribir un dato fiscal inventado. */
   regime?: string;
   thirdType?: string;
+  /** Uso de CFDI (clave SAT, ej. 'G03'). */
+  cfdiUse?: string;
   // Alegra exige el país en la dirección al crear un contacto ("El país es
-  // obligatorio", code 2008). Motipos aún no captura domicilio, así que va el
-  // país por defecto y contabilidad completa el resto antes de facturar.
-  address?: { country: string };
+  // obligatorio", code 2008). El CP va cuando lo tenemos: sin él el CFDI 4.0
+  // no se puede timbrar. El resto del domicilio lo completa contabilidad.
+  address?: { country: string; zipCode?: string };
 }
 
 export function createContact(payload: AlegraContactPayload): Promise<AlegraContact> {

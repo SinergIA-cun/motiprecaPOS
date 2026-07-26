@@ -9,9 +9,11 @@ import type {
   CreateVentaInput,
   EstadoCotizacion,
   EtapaPedido,
+  ImportarEquivalenciasInput,
   MetodoPago,
   RegistrarPagoInput,
   Rol,
+  UnidadCaptura,
   UpdateClienteInput,
   UpdateCotizacionInput,
   UpdateProductoInput,
@@ -19,7 +21,7 @@ import type {
   UpdateUsuarioInput,
 } from '@motipreca/shared';
 
-export type { MetodoPago } from '@motipreca/shared';
+export type { MetodoPago, UnidadCaptura } from '@motipreca/shared';
 
 export type { EstadoCotizacion, EtapaPedido } from '@motipreca/shared';
 import { useAuthStore } from '../stores/auth';
@@ -198,8 +200,34 @@ export interface Cliente {
   sucursalId: string | null;
   lineaCredito: string | null; // Decimal serializado; null = contado
   activo: boolean;
+  // Datos fiscales para el CFDI 4.0 (los necesita Alegra para timbrar).
+  razonSocial: string | null;
+  regimenFiscal: string | null; // clave SAT
+  codigoPostalFiscal: string | null;
+  usoCFDI: string | null; // clave SAT
   createdAt: string;
   updatedAt: string;
+}
+
+/** Datos mínimos para evaluar si a un cliente se le puede facturar. Estructural
+ *  a propósito: sirve igual para `Cliente` y para el cliente embebido en el
+ *  detalle de una cotización. */
+export interface ClienteFiscal {
+  rfc: string | null;
+  razonSocial: string | null;
+  regimenFiscal: string | null;
+  codigoPostalFiscal: string | null;
+}
+
+/** ¿Al cliente le falta algo para poder facturarle? Devuelve los campos que faltan. */
+export function faltantesFiscales(cliente: ClienteFiscal | null | undefined): string[] {
+  if (!cliente) return [];
+  const faltan: string[] = [];
+  if (!cliente.rfc) faltan.push('RFC');
+  if (!cliente.razonSocial) faltan.push('razón social');
+  if (!cliente.regimenFiscal) faltan.push('régimen fiscal');
+  if (!cliente.codigoPostalFiscal) faltan.push('código postal fiscal');
+  return faltan;
 }
 
 /** Crédito del cliente: línea local + adeudo consultado en vivo a Alegra. */
@@ -255,6 +283,8 @@ export interface Producto {
   tipoProducto: TipoProducto;
   precioBase: string; // Decimal serializado como string
   activo: boolean;
+  /** Piezas que cubren 1 m². null = no se vende por m². Dato local, no de Alegra. */
+  piezasPorM2: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -286,7 +316,27 @@ export const productosApi = {
       { method: 'PATCH', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),
+  importarEquivalencias: (input: ImportarEquivalenciasInput) =>
+    request<{ data: ResultadoEquivalencias }>(
+      '/productos/equivalencias',
+      { method: 'POST', body: JSON.stringify(input) },
+      true,
+    ).then((r) => r.data),
 };
+
+/** Resultado de la carga masiva de piezas por m². */
+export interface ResultadoEquivalencias {
+  simulacion: boolean;
+  leidas: number;
+  actualizados: { codigo: string; piezasPorM2: number; anterior: number | null }[];
+  sinCambio: string[];
+  omitidos: string[];
+  noEncontrados: string[];
+  invalidos: { codigo: string; valor: string; motivo: string }[];
+  /** Productos cuya unidad ya es m²: la equivalencia no aplica. */
+  yaEnM2: string[];
+  resumen: string;
+}
 
 // ---- Cotizaciones (montos llegan como string: Decimal serializado) ----
 
@@ -313,12 +363,17 @@ export interface ItemCotizacion {
   id: string;
   productoId: string;
   descripcion: string;
-  cantidad: string;
+  cantidad: string; // SIEMPRE piezas
   precioUnitario: string;
   descuentoPct: string;
   importe: string;
   orden: number;
-  producto: { unidad: Unidad };
+  // Captura en m² (§ equivalencias). unidadCaptura 'M2' = el vendedor pidió
+  // superficie y `cantidad` se derivó de ella.
+  unidadCaptura: UnidadCaptura;
+  cantidadM2: string | null;
+  mermaPct: string;
+  producto: { unidad: Unidad; piezasPorM2: string | null };
 }
 
 export interface HistorialEntry {
@@ -354,6 +409,7 @@ export interface CotizacionDetail {
   vigencia: number;
   vigenciaHasta: string;
   observaciones: string | null;
+  requiereFactura: boolean;
   createdAt: string;
   items: ItemCotizacion[];
   cliente: {
@@ -362,6 +418,10 @@ export interface CotizacionDetail {
     rfc: string | null;
     telefono: string | null;
     email: string | null;
+    razonSocial: string | null;
+    regimenFiscal: string | null;
+    codigoPostalFiscal: string | null;
+    usoCFDI: string | null;
   };
   sucursal: { id: string; nombre: string; prefijoFolio: string };
   asesor: { nombre: string; iniciales: string };
@@ -494,11 +554,15 @@ export const configApi = {
 export interface ItemVenta {
   id: string;
   descripcion: string;
-  cantidad: string;
+  cantidad: string; // SIEMPRE piezas
   precioUnitario: string;
   descuentoPct: string;
   importe: string;
   orden: number;
+  unidadCaptura: UnidadCaptura;
+  cantidadM2: string | null;
+  mermaPct: string;
+  producto: { unidad: Unidad; piezasPorM2: string | null };
 }
 
 export interface Pago {
@@ -516,6 +580,7 @@ export interface VentaDetalle {
   iva: string;
   total: string;
   createdAt: string;
+  requiereFactura: boolean;
   items: ItemVenta[];
   pagos: Pago[];
   cliente: { nombre: string; rfc?: string | null } | null;

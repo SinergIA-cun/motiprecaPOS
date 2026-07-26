@@ -1,5 +1,5 @@
 import type { CreateProductoInput, UpdateProductoInput } from '@motipreca/shared';
-import { Pencil, Plus, RefreshCw, Search } from 'lucide-react';
+import { Pencil, Plus, RefreshCw, Ruler, Search } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/ui/Badge';
@@ -16,6 +16,7 @@ import {
 import { formatMoney } from '../../lib/format';
 import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSyncAlegra } from '../sync/hooks';
+import { EquivalenciasModal } from './EquivalenciasModal';
 import { ProductoForm } from './ProductoForm';
 import { useCreateProducto, useProductos, useUpdateProducto } from './hooks';
 
@@ -31,6 +32,7 @@ export function ProductosPage() {
   const [editing, setEditing] = useState<Producto | null>(null);
   const [creating, setCreating] = useState(false);
   const [syncResult, setSyncResult] = useState<AlegraSyncResult | null>(null);
+  const [equivalenciasOpen, setEquivalenciasOpen] = useState(false);
 
   function handleSync() {
     syncMut.mutate(undefined, {
@@ -87,6 +89,14 @@ export function ProductosPage() {
                 />
                 {syncMut.isPending ? 'Sincronizando…' : 'Sincronizar con Alegra'}
               </Button>
+              <Button
+                variant="ghost"
+                className="h-10 px-4"
+                onClick={() => setEquivalenciasOpen(true)}
+              >
+                <Ruler size={16} strokeWidth={2.5} className="mr-2" />
+                Equivalencias m²
+              </Button>
               <Button className="h-10 px-4" onClick={() => setCreating(true)}>
                 <Plus size={16} strokeWidth={2.5} className="mr-2" />
                 Nuevo producto
@@ -119,6 +129,7 @@ export function ProductosPage() {
                 <Th>Código</Th>
                 <Th>Producto</Th>
                 <Th>Unidad</Th>
+                <Th className="text-right">pz/m²</Th>
                 <Th className="text-right">Precio base</Th>
                 <Th>Estado</Th>
                 {canManage ? <th className="w-16" /> : null}
@@ -126,9 +137,9 @@ export function ProductosPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <RowMessage span={canManage ? 6 : 5}>Cargando…</RowMessage>
+                <RowMessage span={canManage ? 7 : 6}>Cargando…</RowMessage>
               ) : isError ? (
-                <RowMessage span={canManage ? 6 : 5}>
+                <RowMessage span={canManage ? 7 : 6}>
                   No se pudieron cargar los productos.
                 </RowMessage>
               ) : productos && productos.length > 0 ? (
@@ -150,6 +161,15 @@ export function ProductosPage() {
                       <span className="font-mono text-xs text-slate-500">
                         {UNIDAD_LABEL[p.unidad]}
                       </span>
+                    </Td>
+                    <Td className="text-right">
+                      {p.piezasPorM2 != null ? (
+                        <span className="font-mono text-xs text-navy-700">
+                          {Number(p.piezasPorM2)}
+                        </span>
+                      ) : (
+                        <span className="font-mono text-xs text-slate-300">—</span>
+                      )}
                     </Td>
                     <Td className="text-right">
                       <span className="font-mono text-sm text-navy-800">
@@ -174,7 +194,7 @@ export function ProductosPage() {
                   </tr>
                 ))
               ) : (
-                <RowMessage span={canManage ? 6 : 5}>
+                <RowMessage span={canManage ? 7 : 6}>
                   {filter.q ? 'Ningún producto coincide.' : 'Aún no hay productos en el catálogo.'}
                 </RowMessage>
               )}
@@ -197,6 +217,8 @@ export function ProductosPage() {
           onCancel={close}
         />
       </Modal>
+
+      <EquivalenciasModal open={equivalenciasOpen} onClose={() => setEquivalenciasOpen(false)} />
 
       <Modal
         open={syncResult !== null}

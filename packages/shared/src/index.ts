@@ -2,7 +2,10 @@
 
 export const APP_NAME = 'Motipreca' as const;
 
+export * from './catalogos-sat.js';
+export * from './m2.js';
 export * from './schemas/auth.js';
+export * from './schemas/captura.js';
 export * from './schemas/cliente.js';
 export * from './schemas/cotizacion.js';
 export * from './schemas/producto.js';

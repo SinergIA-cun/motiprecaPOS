@@ -8,6 +8,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/cn';
 import { formatMoney } from '../../lib/format';
+import { UNIDAD_LABEL } from '../../lib/unidades';
 import { CreditoPanel } from '../clientes/CreditoPanel';
 import { CobroModal } from '../pos/CobroModal';
 import { useRegistrarPago } from '../pos/hooks';
@@ -106,6 +107,7 @@ export function CotizacionDetailPage() {
         </button>
         <h1 className="font-mono text-lg font-bold tracking-tight text-navy-900">{cot.folio}</h1>
         <Badge tone={ESTADO_TONE[cot.estado]}>{ESTADO_LABEL[cot.estado]}</Badge>
+        {cot.requiereFactura ? <Badge tone="navy">Requiere factura</Badge> : null}
         <div className="ml-auto flex gap-2">
           {cot.estado === 'ABIERTA' ? (
             <>
@@ -388,8 +390,24 @@ export function CotizacionDetailPage() {
               <tbody>
                 {cot.items.map((it) => (
                   <tr key={it.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-5 py-3 text-navy-900">{it.descripcion}</td>
-                    <td className="px-3 py-3 text-right font-mono text-slate-600">{it.cantidad}</td>
+                    <td className="px-5 py-3 text-navy-900">
+                      {it.descripcion}
+                      {it.unidadCaptura === 'M2' && it.cantidadM2 != null ? (
+                        <span className="block font-mono text-[0.62rem] text-slate-400">
+                          pedido: {Number(it.cantidadM2)} m²
+                          {Number(it.mermaPct) > 0 ? ` + ${Number(it.mermaPct)}% merma` : ''}
+                          {it.producto.piezasPorM2
+                            ? ` · ${Number(it.producto.piezasPorM2)} pz/m²`
+                            : ''}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono text-slate-600">
+                      {Number(it.cantidad)}
+                      <span className="ml-1 text-[0.62rem] text-slate-400">
+                        {UNIDAD_LABEL[it.producto.unidad]}
+                      </span>
+                    </td>
                     <td className="px-3 py-3 text-right font-mono text-slate-600">
                       {formatMoney(it.precioUnitario)}
                     </td>

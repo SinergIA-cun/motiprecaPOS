@@ -121,8 +121,17 @@ model Cliente {
   tipo       TipoCliente @default(INDIVIDUAL)
   telefono   String?
   email      String?
-  rfc        String? // dato fiscal básico (MVP); facturación completa en fase posterior
+  rfc        String?
   notas      String?
+
+  // Datos fiscales para que Alegra pueda timbrar el CFDI 4.0 sin corrección
+  // manual. `nombre` es el nombre comercial (con el que lo buscan los
+  // vendedores); `razonSocial` es el que debe ir en la factura, exacto como
+  // aparece en la Constancia de Situación Fiscal.
+  razonSocial        String?
+  regimenFiscal      String? // clave SAT: 601, 603, 612, 626…
+  codigoPostalFiscal String? // CP del domicilio fiscal, obligatorio en CFDI 4.0
+  usoCFDI            String? // clave SAT: G01, G03, I01…
 
   // Línea de crédito máxima (plan §5). null = sin crédito configurado (contado).
   // El adeudo NO se guarda aquí: se consulta en vivo a Alegra (facturas abiertas).
@@ -167,6 +176,16 @@ model Producto {
   precioBase   Decimal      @default(0) @db.Decimal(12, 2)
   activo       Boolean      @default(true)
 
+  // Piezas que cubren 1 m² (adocreto huesito = 54; celosía Amaia = 11).
+  // `null` = el producto no se vende por m² y la UI no ofrece la opción.
+  //
+  // DATO LOCAL DE MOTIPOS: Alegra no lo conoce ni lo puede guardar. El sync
+  // (`lib/alegra/sync.ts`) actualiza con el objeto de `mapItemToProducto`, que
+  // NO incluye este campo, así que Prisma lo deja intacto. Si algún día ese
+  // mapper empieza a devolver el producto completo, esta columna se borra en la
+  // primera sincronización — no agregarlo ahí.
+  piezasPorM2 Decimal? @db.Decimal(10, 4)
+
   // Integración Alegra (Fase 1.5)
   alegraId   String?    @unique
   estadoSync EstadoSync @default(PENDIENTE)
@@ -196,6 +215,14 @@ enum TipoProducto {
   BAJO_PEDIDO
   STOCK_SIN_REPOSICION
   STOCK_MINIMO
+}
+
+/// Cómo capturó el vendedor la cantidad de una partida. `cantidad` SIEMPRE se
+/// guarda en piezas (es lo que ve Alegra y lo que surte almacén); esto solo
+/// recuerda la intención original para reimprimir el documento igual.
+enum UnidadCaptura {
+  PZA
+  M2
 }
 
 // ===========================================================================
@@ -233,6 +260,10 @@ model Cotizacion {
 
   // % de anticipo requerido al cobrar (§10, se define por cotización; default 60).
   anticipoPct Decimal @default(60) @db.Decimal(5, 2)
+
+  // ¿El cliente va a pedir factura? La factura se emite en Alegra; esto es la
+  // bandera operativa para saber a quién hay que facturarle y con qué datos.
+  requiereFactura Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -284,11 +315,16 @@ model ItemCotizacion {
   producto     Producto   @relation(fields: [productoId], references: [id])
 
   descripcion    String // snapshot del nombre del producto al momento
-  cantidad       Decimal @db.Decimal(10, 2)
+  cantidad       Decimal @db.Decimal(10, 2) // SIEMPRE en piezas
   precioUnitario Decimal @db.Decimal(12, 2)
   descuentoPct   Decimal @default(0) @db.Decimal(5, 2)
   importe        Decimal @db.Decimal(12, 2)
   orden          Int     @default(0)
+
+  // Captura en m² (opcional). `cantidad` se deriva de esto en el servidor.
+  unidadCaptura UnidadCaptura @default(PZA)
+  cantidadM2    Decimal?      @db.Decimal(10, 2) // m² que pidió el cliente
+  mermaPct      Decimal       @default(0) @db.Decimal(5, 2) // % extra por cortes
 
   @@index([cotizacionId])
 }
@@ -363,6 +399,9 @@ model Venta {
   cotizacionId String?     @unique
   cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
 
+  // ¿El cliente pidió factura? Se hereda de la cotización al cobrar.
+  requiereFactura Boolean @default(false)
+
   subtotal       Decimal @default(0) @db.Decimal(12, 2)
   descuentoTotal Decimal @default(0) @db.Decimal(12, 2)
   iva            Decimal @default(0) @db.Decimal(12, 2)
@@ -389,11 +428,16 @@ model ItemVenta {
   producto   Producto @relation(fields: [productoId], references: [id])
 
   descripcion    String // snapshot del nombre al momento
-  cantidad       Decimal @db.Decimal(10, 2)
+  cantidad       Decimal @db.Decimal(10, 2) // SIEMPRE en piezas
   precioUnitario Decimal @db.Decimal(12, 2)
   descuentoPct   Decimal @default(0) @db.Decimal(5, 2)
   importe        Decimal @db.Decimal(12, 2)
   orden          Int     @default(0)
+
+  // Captura en m² (opcional). `cantidad` se deriva de esto en el servidor.
+  unidadCaptura UnidadCaptura @default(PZA)
+  cantidadM2    Decimal?      @db.Decimal(10, 2)
+  mermaPct      Decimal       @default(0) @db.Decimal(5, 2)
 
   @@index([ventaId])
 }

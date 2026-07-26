@@ -9,8 +9,18 @@ import { authenticate } from '../middleware/authenticate.js';
 // Módulo operativo: cualquier usuario autenticado gestiona clientes (regla #15).
 const auth = { preHandler: [authenticate] };
 
-/** Campos que Alegra también guarda: solo estos justifican re-empujar el contacto. */
-const CAMPOS_ALEGRA = ['nombre', 'rfc', 'email', 'telefono'] as const;
+/** Campos que Alegra también guarda: solo estos justifican re-empujar el contacto.
+ *  Los fiscales entran aquí porque son justo los que Alegra necesita para timbrar. */
+const CAMPOS_ALEGRA = [
+  'nombre',
+  'rfc',
+  'email',
+  'telefono',
+  'razonSocial',
+  'regimenFiscal',
+  'codigoPostalFiscal',
+  'usoCFDI',
+] as const;
 
 /** La línea de crédito solo la fija gerencia (plan §5: su aumento es decisión de arriba). */
 function esGerencia(request: FastifyRequest): boolean {
@@ -89,6 +99,10 @@ export async function clienteRoutes(app: FastifyInstance): Promise<void> {
         notas: d.notas ?? null,
         sucursalId: d.sucursalId,
         lineaCredito: d.lineaCredito ?? null,
+        razonSocial: d.razonSocial ?? null,
+        regimenFiscal: d.regimenFiscal ?? null,
+        codigoPostalFiscal: d.codigoPostalFiscal ?? null,
+        usoCFDI: d.usoCFDI ?? null,
       },
     });
     // El alta local ya está firme. El empuje a Alegra va en segundo plano para
@@ -130,6 +144,10 @@ export async function clienteRoutes(app: FastifyInstance): Promise<void> {
     if (d.sucursalId !== undefined) data.sucursalId = d.sucursalId;
     if (d.activo !== undefined) data.activo = d.activo;
     if (d.lineaCredito !== undefined) data.lineaCredito = d.lineaCredito;
+    if (d.razonSocial !== undefined) data.razonSocial = d.razonSocial;
+    if (d.regimenFiscal !== undefined) data.regimenFiscal = d.regimenFiscal;
+    if (d.codigoPostalFiscal !== undefined) data.codigoPostalFiscal = d.codigoPostalFiscal;
+    if (d.usoCFDI !== undefined) data.usoCFDI = d.usoCFDI;
 
     const cliente = await prisma.cliente.update({ where: { id }, data });
     invalidarCreditoCache(id);

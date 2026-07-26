@@ -2,6 +2,7 @@ import { prisma } from '@motipreca/database';
 import { createVentaSchema, registrarPagoSchema } from '@motipreca/shared';
 import type { FastifyInstance } from 'fastify';
 import { conflict, notFound, unauthorized, validationError } from '../lib/errors.js';
+import { resolverCantidad } from '../lib/partidas.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 
@@ -16,7 +17,12 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
     const venta = await prisma.venta.findUnique({
       where: { id },
       include: {
-        items: { orderBy: { orden: 'asc' } },
+        items: {
+          orderBy: { orden: 'asc' },
+          // La equivalencia se usa en el ticket para mostrar los m² que cubren
+          // las piezas (el cliente pidió superficie).
+          include: { producto: { select: { unidad: true, piezasPorM2: true } } },
+        },
         pagos: true,
         cliente: { select: { id: true, nombre: true, rfc: true } },
         sucursal: { select: { id: true, nombre: true, prefijoFolio: true } },
@@ -41,7 +47,14 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
 
     const venta = await prisma.venta.findUnique({
       where: { id },
-      select: { id: true, folio: true, total: true, cotizacionId: true, pagos: true },
+      select: {
+        id: true,
+        folio: true,
+        total: true,
+        cotizacionId: true,
+        pagos: true,
+        requiereFactura: true,
+      },
     });
     if (!venta) throw notFound('Venta no encontrada');
 
@@ -80,10 +93,12 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       }
-      // Si la venta queda 100% en efectivo, entra al registro de caja auditable.
+      // Si la venta queda 100% en efectivo y sin factura, entra al registro de
+      // caja auditable (§8). Facturada, el CFDI ya la rastrea.
       const todosEfectivo =
         venta.pagos.every((p) => p.metodoPago === 'EFECTIVO') &&
-        parsed.data.metodoPago === 'EFECTIVO';
+        parsed.data.metodoPago === 'EFECTIVO' &&
+        !venta.requiereFactura;
       await tx.venta.update({ where: { id }, data: { esStandby: todosEfectivo } });
     });
 
@@ -118,25 +133,33 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
     const productoIds = [...new Set(d.items.map((i) => i.productoId))];
     const productos = await prisma.producto.findMany({
       where: { id: { in: productoIds } },
-      select: { id: true, nombre: true },
+      select: { id: true, nombre: true, unidad: true, piezasPorM2: true },
     });
-    const prodMap = new Map(productos.map((p) => [p.id, p.nombre]));
+    const prodMap = new Map(productos.map((p) => [p.id, p]));
     for (const it of d.items) {
       if (!prodMap.has(it.productoId)) throw validationError('Un producto seleccionado no existe');
     }
 
+    // Igual que en cotizaciones: si la partida se capturó en m², las piezas las
+    // calcula el servidor desde la equivalencia del producto.
     const items = d.items.map((it, idx) => {
-      const base = it.cantidad * it.precioUnitario;
+      const prod = prodMap.get(it.productoId);
+      if (!prod) throw validationError('Un producto seleccionado no existe');
+      const captura = resolverCantidad(it, prod);
+      const base = captura.cantidad * it.precioUnitario;
       const importe = round2(base * (1 - it.descuentoPct / 100));
       return {
         productoId: it.productoId,
-        descripcion: prodMap.get(it.productoId) ?? '',
-        cantidad: it.cantidad,
+        descripcion: prod.nombre,
+        cantidad: captura.cantidad,
         precioUnitario: it.precioUnitario,
         descuentoPct: it.descuentoPct,
         importe,
         orden: idx,
         base,
+        unidadCaptura: captura.unidadCaptura,
+        cantidadM2: captura.cantidadM2,
+        mermaPct: captura.mermaPct,
       };
     });
     const subtotal = round2(items.reduce((s, i) => s + i.importe, 0));
@@ -148,8 +171,10 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
     if (sumaPagos !== total) {
       throw validationError(`Los pagos suman ${sumaPagos}; deben igualar el total (${total}).`);
     }
-    // Efectivo puro y sin factura → entra al registro de caja en efectivo (auditable).
-    const esStandby = d.pagos.every((p) => p.metodoPago === 'EFECTIVO');
+    // Efectivo puro y SIN factura → entra al registro de caja en efectivo (§8).
+    // Una venta en efectivo que sí se factura queda rastreada por el CFDI, así
+    // que no es "efectivo no facturado" y no tiene por qué entrar aquí.
+    const esStandby = d.pagos.every((p) => p.metodoPago === 'EFECTIVO') && !d.requiereFactura;
 
     const venta = await prisma.$transaction(async (tx) => {
       const rango = await tx.rangoFolio.findUnique({
@@ -178,6 +203,7 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
           iva,
           total,
           esStandby,
+          requiereFactura: d.requiereFactura,
           items: {
             create: items.map((i) => ({
               productoId: i.productoId,
@@ -187,6 +213,9 @@ export async function ventaRoutes(app: FastifyInstance): Promise<void> {
               descuentoPct: i.descuentoPct,
               importe: i.importe,
               orden: i.orden,
+              unidadCaptura: i.unidadCaptura,
+              cantidadM2: i.cantidadM2,
+              mermaPct: i.mermaPct,
             })),
           },
           pagos: {

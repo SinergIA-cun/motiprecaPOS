@@ -24,6 +24,17 @@ const precioSchema = z.coerce
   .min(0, 'El precio no puede ser negativo')
   .max(99_999_999, 'Precio demasiado alto');
 
+/** Piezas que cubren 1 m². '' o null = el producto no se vende por m². */
+const piezasPorM2Opcional = z.preprocess(
+  (v: unknown) => (v === '' || v === undefined ? undefined : v === null ? null : v),
+  z.coerce
+    .number()
+    .positive('Debe ser mayor a 0')
+    .max(10_000, 'Equivalencia demasiado alta')
+    .nullable()
+    .optional(),
+);
+
 /** Alta de producto. */
 export const createProductoSchema = z.object({
   codigo: codigoSchema,
@@ -33,6 +44,7 @@ export const createProductoSchema = z.object({
   unidad: unidadSchema.default('PZA'),
   tipoProducto: tipoProductoSchema.default('BAJO_PEDIDO'),
   precioBase: precioSchema,
+  piezasPorM2: piezasPorM2Opcional,
 });
 
 /** Edición de producto. */
@@ -45,7 +57,20 @@ export const updateProductoSchema = z.object({
   tipoProducto: tipoProductoSchema.optional(),
   precioBase: precioSchema.optional(),
   activo: z.boolean().optional(),
+  piezasPorM2: piezasPorM2Opcional,
+});
+
+/** Carga masiva de equivalencias por CSV.
+ *
+ *  Solo actualiza `piezasPorM2` de productos que YA existen, buscándolos por
+ *  código. NO crea productos: el catálogo es de Alegra (decisión de Fer, jul
+ *  2026) y esta equivalencia es el único dato que Alegra no puede guardar. */
+export const importarEquivalenciasSchema = z.object({
+  csv: z.string().min(1, 'Pega el contenido del CSV'),
+  /** true = solo reporta qué haría, sin escribir. */
+  simular: z.boolean().default(false),
 });
 
 export type CreateProductoInput = z.infer<typeof createProductoSchema>;
 export type UpdateProductoInput = z.infer<typeof updateProductoSchema>;
+export type ImportarEquivalenciasInput = z.infer<typeof importarEquivalenciasSchema>;

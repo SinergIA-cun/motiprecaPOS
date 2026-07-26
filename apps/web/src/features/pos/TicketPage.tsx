@@ -1,3 +1,4 @@
+import { piezasAM2 } from '@motipreca/shared';
 import { Plus, Printer } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EMPRESA } from '../../lib/empresa';
@@ -64,6 +65,14 @@ export function TicketPage() {
               <tr key={it.id} className="align-top">
                 <td className="py-0.5 pr-2">
                   {Number(it.cantidad)} × {it.descripcion}
+                  {/* Superficie que cubren esas piezas. La merma NO se imprime:
+                      es criterio interno del vendedor (decisión de Fer, jul 2026). */}
+                  {it.unidadCaptura === 'M2' && it.producto.piezasPorM2 ? (
+                    <span className="block text-slate-500">
+                      equivale a {piezasAM2(Number(it.cantidad), Number(it.producto.piezasPorM2))}{' '}
+                      m²
+                    </span>
+                  ) : null}
                 </td>
                 <td className="py-0.5 text-right">{formatMoney(it.importe)}</td>
               </tr>

@@ -1,9 +1,11 @@
+import { piezasAM2 } from '@motipreca/shared';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { APP_PUBLIC_URL, EMPRESA } from '../../lib/empresa';
 import { formatMoney, formatTelefono } from '../../lib/format';
+import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useCotizacion } from './hooks';
 
 const dateFmt = new Intl.DateTimeFormat('es-MX', { dateStyle: 'long' });
@@ -107,8 +109,24 @@ export function CotizacionPrintPage() {
           <tbody>
             {cot.items.map((it) => (
               <tr key={it.id} className="border-b border-slate-100">
-                <td className="py-2 pl-2 text-navy-900">{it.descripcion}</td>
-                <td className="py-2 text-right font-mono text-slate-600">{it.cantidad}</td>
+                <td className="py-2 pl-2 text-navy-900">
+                  {it.descripcion}
+                  {/* Se pidió por superficie: se muestra la superficie que REALMENTE
+                      cubren las piezas. La merma NO se imprime: es criterio interno
+                      que el vendedor explica de viva voz (decisión de Fer, jul 2026). */}
+                  {it.unidadCaptura === 'M2' && it.producto.piezasPorM2 ? (
+                    <span className="block font-mono text-[9px] text-slate-500">
+                      equivale a {piezasAM2(Number(it.cantidad), Number(it.producto.piezasPorM2))}{' '}
+                      m²
+                    </span>
+                  ) : null}
+                </td>
+                <td className="py-2 text-right font-mono text-slate-600">
+                  {Number(it.cantidad)}
+                  <span className="ml-1 text-[9px] text-slate-400">
+                    {UNIDAD_LABEL[it.producto.unidad]}
+                  </span>
+                </td>
                 <td className="py-2 text-right font-mono text-slate-600">
                   {formatMoney(it.precioUnitario)}
                 </td>

@@ -7,5 +7,8 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  // Los *.test.ts los corre el runner nativo de Node directamente sobre el
+  // fuente (`node --test`), no se compilan a dist.
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

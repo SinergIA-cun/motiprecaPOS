@@ -1,14 +1,23 @@
+import { MERMA_PCT_DEFAULT, admiteCapturaM2 } from '@motipreca/shared';
 import { Minus, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CapturaToggle } from '../../components/CapturaToggle';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
-import { ApiError, type MetodoPago, type Producto } from '../../lib/api';
+import {
+  ApiError,
+  type MetodoPago,
+  type Producto,
+  type UnidadCaptura,
+  faltantesFiscales,
+} from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { convertirSeguro, resumenCaptura } from '../../lib/m2';
 import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSucursales } from '../admin/hooks';
 import { useClientes } from '../clientes/hooks';
@@ -18,13 +27,22 @@ import { useCreateVenta } from './hooks';
 
 const IVA_RATE = 0.16;
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const num = (v: string) => {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+};
 
 interface CartItem {
   productoId: string;
   descripcion: string;
   precioUnitario: number;
   unidad: Producto['unidad'];
+  /** Piezas. En captura por m² es el preview; el servidor recalcula. */
   cantidad: number;
+  piezasPorM2: number | null;
+  unidadCaptura: UnidadCaptura;
+  cantidadM2: string;
+  mermaPct: string;
 }
 
 export function POSPage() {
@@ -40,20 +58,44 @@ export function POSPage() {
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [clienteId, setClienteId] = useState('');
+  const [requiereFactura, setRequiereFactura] = useState(false);
   const [cobroOpen, setCobroOpen] = useState(false);
 
   const sucursalId = user?.sucursalId || sucursales?.[0]?.id || '';
   const resultados = (productos ?? []).slice(0, 24);
 
-  const subtotal = round2(cart.reduce((s, i) => s + i.cantidad * i.precioUnitario, 0));
+  // Las piezas mandan en el dinero. En m² salen de la conversión; el servidor
+  // repite el cálculo y su resultado es el que se guarda.
+  const lineas = cart.map((i) => {
+    const conv =
+      i.unidadCaptura === 'M2'
+        ? convertirSeguro(num(i.cantidadM2), i.piezasPorM2, num(i.mermaPct))
+        : null;
+    const piezas = i.unidadCaptura === 'M2' ? (conv?.piezas ?? 0) : i.cantidad;
+    return { ...i, conv, piezas, importe: round2(piezas * i.precioUnitario) };
+  });
+
+  const subtotal = round2(lineas.reduce((s, l) => s + l.importe, 0));
   const iva = round2(subtotal * IVA_RATE);
   const total = round2(subtotal + iva);
+  const cobrable = total > 0 && lineas.every((l) => l.piezas > 0);
+
+  const clienteSel = clientes?.find((c) => c.id === clienteId) ?? null;
+  const faltantes = faltantesFiscales(clienteSel);
 
   function addProducto(p: Producto) {
+    const eq = p.piezasPorM2 == null ? null : Number(p.piezasPorM2);
+    const porM2 = admiteCapturaM2(p.unidad, eq);
     setCart((c) => {
       const found = c.find((x) => x.productoId === p.id);
       if (found) {
-        return c.map((x) => (x.productoId === p.id ? { ...x, cantidad: x.cantidad + 1 } : x));
+        // Producto ya en el carrito: en m² sumar 1 pieza no significa nada, así
+        // que solo se incrementa cuando la captura es por pieza.
+        return c.map((x) =>
+          x.productoId === p.id && x.unidadCaptura === 'PZA'
+            ? { ...x, cantidad: x.cantidad + 1 }
+            : x,
+        );
       }
       return [
         ...c,
@@ -63,6 +105,10 @@ export function POSPage() {
           precioUnitario: Number(p.precioBase),
           unidad: p.unidad,
           cantidad: 1,
+          piezasPorM2: eq,
+          unidadCaptura: porM2 ? 'M2' : 'PZA',
+          cantidadM2: porM2 ? '1' : '',
+          mermaPct: porM2 ? String(MERMA_PCT_DEFAULT) : '0',
         },
       ];
     });
@@ -78,6 +124,28 @@ export function POSPage() {
     );
   }
 
+  function actualizarItem(id: string, campo: 'cantidadM2' | 'mermaPct', valor: string) {
+    setCart((c) => c.map((x) => (x.productoId === id ? { ...x, [campo]: valor } : x)));
+  }
+
+  function cambiarCaptura(id: string, unidadCaptura: UnidadCaptura) {
+    setCart((c) =>
+      c.map((x) => {
+        if (x.productoId !== id) return x;
+        if (unidadCaptura === 'M2') {
+          return {
+            ...x,
+            unidadCaptura,
+            cantidadM2: x.cantidadM2 || '1',
+            mermaPct: x.mermaPct === '0' ? String(MERMA_PCT_DEFAULT) : x.mermaPct,
+          };
+        }
+        const conv = convertirSeguro(num(x.cantidadM2), x.piezasPorM2, num(x.mermaPct));
+        return { ...x, unidadCaptura, cantidad: conv?.piezas ?? x.cantidad, mermaPct: '0' };
+      }),
+    );
+  }
+
   function quitar(id: string) {
     setCart((c) => c.filter((x) => x.productoId !== id));
   }
@@ -89,11 +157,15 @@ export function POSPage() {
       {
         sucursalId,
         clienteId: clienteId || undefined,
-        items: cart.map((i) => ({
+        requiereFactura,
+        items: lineas.map((i) => ({
           productoId: i.productoId,
-          cantidad: i.cantidad,
+          cantidad: i.piezas,
           precioUnitario: i.precioUnitario,
           descuentoPct: 0,
+          unidadCaptura: i.unidadCaptura,
+          cantidadM2: i.unidadCaptura === 'M2' ? num(i.cantidadM2) : undefined,
+          mermaPct: i.unidadCaptura === 'M2' ? num(i.mermaPct) : 0,
         })),
         pagos: [{ metodoPago: metodo, monto, referencia }],
       },
@@ -172,6 +244,27 @@ export function POSPage() {
                 </option>
               ))}
             </Select>
+            {/* Lo primero que se pregunta en mostrador. */}
+            <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm font-medium text-navy-900">
+              <input
+                type="checkbox"
+                checked={requiereFactura}
+                onChange={(e) => setRequiereFactura(e.target.checked)}
+                className="h-4 w-4 cursor-pointer accent-navy-700"
+              />
+              Requiere factura
+            </label>
+            {requiereFactura && !clienteId ? (
+              <p className="mt-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                Para facturar hace falta elegir un cliente con datos fiscales; “público en general”
+                no se puede facturar.
+              </p>
+            ) : null}
+            {requiereFactura && clienteId && faltantes.length > 0 ? (
+              <p className="mt-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                Falta <strong>{faltantes.join(', ')}</strong> de este cliente para emitir el CFDI.
+              </p>
+            ) : null}
           </div>
 
           <div className="flex-1 overflow-auto px-3 py-3">
@@ -179,7 +272,7 @@ export function POSPage() {
               <p className="py-12 text-center text-sm text-slate-400">Agrega productos.</p>
             ) : (
               <ul className="space-y-1">
-                {cart.map((i) => (
+                {lineas.map((i) => (
                   <li key={i.productoId} className="rounded-lg px-2 py-2 hover:bg-slate-50">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium leading-tight text-navy-900">
@@ -194,23 +287,72 @@ export function POSPage() {
                         <Trash2 size={14} strokeWidth={2} />
                       </button>
                     </div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <StepBtn onClick={() => cambiarQty(i.productoId, -1)} aria-label="Menos">
-                          <Minus size={13} strokeWidth={2.5} />
-                        </StepBtn>
-                        <span className="w-8 text-center font-mono text-sm">{i.cantidad}</span>
-                        <StepBtn onClick={() => cambiarQty(i.productoId, 1)} aria-label="Más">
-                          <Plus size={13} strokeWidth={2.5} />
-                        </StepBtn>
-                        <span className="ml-1 font-mono text-[0.65rem] text-slate-400">
-                          {UNIDAD_LABEL[i.unidad]}
-                        </span>
+                    {admiteCapturaM2(i.unidad, i.piezasPorM2) ? (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <CapturaToggle
+                          value={i.unidadCaptura}
+                          etiquetaPza={UNIDAD_LABEL[i.unidad]}
+                          onChange={(v) => cambiarCaptura(i.productoId, v)}
+                        />
+                        {i.unidadCaptura === 'M2' ? (
+                          <label className="flex items-center gap-1 font-mono text-[0.6rem] text-slate-400">
+                            merma
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="1"
+                              aria-label={`Merma de ${i.descripcion}`}
+                              className="h-7 w-12 text-right font-mono text-xs"
+                              value={i.mermaPct}
+                              onChange={(e) =>
+                                actualizarItem(i.productoId, 'mermaPct', e.target.value)
+                              }
+                            />
+                            %
+                          </label>
+                        ) : null}
                       </div>
+                    ) : null}
+                    <div className="mt-1 flex items-center justify-between">
+                      {i.unidadCaptura === 'M2' ? (
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            aria-label={`Metros cuadrados de ${i.descripcion}`}
+                            className="h-8 w-20 text-right font-mono text-sm"
+                            value={i.cantidadM2}
+                            onChange={(e) =>
+                              actualizarItem(i.productoId, 'cantidadM2', e.target.value)
+                            }
+                          />
+                          <span className="font-mono text-[0.65rem] text-slate-400">m²</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <StepBtn onClick={() => cambiarQty(i.productoId, -1)} aria-label="Menos">
+                            <Minus size={13} strokeWidth={2.5} />
+                          </StepBtn>
+                          <span className="w-8 text-center font-mono text-sm">{i.cantidad}</span>
+                          <StepBtn onClick={() => cambiarQty(i.productoId, 1)} aria-label="Más">
+                            <Plus size={13} strokeWidth={2.5} />
+                          </StepBtn>
+                          <span className="ml-1 font-mono text-[0.65rem] text-slate-400">
+                            {UNIDAD_LABEL[i.unidad]}
+                          </span>
+                        </div>
+                      )}
                       <span className="font-mono text-sm text-navy-800">
-                        {formatMoney(i.cantidad * i.precioUnitario)}
+                        {formatMoney(i.importe)}
                       </span>
                     </div>
+                    {i.conv ? (
+                      <p className="mt-1 font-mono text-[0.6rem] text-navy-500">
+                        {resumenCaptura(i.conv)}
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -234,7 +376,7 @@ export function POSPage() {
             </dl>
             <Button
               className="h-12 w-full text-base"
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || !cobrable}
               onClick={() => setCobroOpen(true)}
             >
               Cobrar {formatMoney(total)}

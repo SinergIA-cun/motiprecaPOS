@@ -1,14 +1,25 @@
+import { MERMA_PCT_DEFAULT, admiteCapturaM2 } from '@motipreca/shared';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { CapturaToggle } from '../../components/CapturaToggle';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../hooks/useAuth';
-import { ApiError, type CotizacionDetail, type Producto, type Unidad } from '../../lib/api';
+import {
+  ApiError,
+  type ClienteFiscal,
+  type CotizacionDetail,
+  type Producto,
+  type Unidad,
+  type UnidadCaptura,
+  faltantesFiscales,
+} from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { convertirSeguro, resumenCaptura } from '../../lib/m2';
 import { UNIDAD_LABEL } from '../../lib/unidades';
 import { useSucursales } from '../admin/hooks';
 import { ClienteBuscador } from '../clientes/ClienteBuscador';
@@ -27,10 +38,16 @@ interface Row {
   key: string;
   productoId: string;
   descripcion: string;
+  /** Piezas. Cuando se captura en m², la calcula el servidor y esto es preview. */
   cantidad: string;
   precioUnitario: string;
   descuentoPct: string;
   unidad: Unidad;
+  /** Equivalencia del producto. null = no se puede capturar en m². */
+  piezasPorM2: number | null;
+  unidadCaptura: UnidadCaptura;
+  cantidadM2: string;
+  mermaPct: string;
 }
 
 export function CotizacionBuilderPage() {
@@ -58,6 +75,12 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
   const esEdicion = Boolean(editCot);
 
   const [clienteId, setClienteId] = useState(editCot?.cliente.id ?? '');
+  // Se guarda el cliente completo (no solo el id) para poder avisar si le faltan
+  // datos fiscales cuando se marca "requiere factura".
+  const [clienteFiscal, setClienteFiscal] = useState<ClienteFiscal | null>(
+    editCot?.cliente ?? null,
+  );
+  const [requiereFactura, setRequiereFactura] = useState(editCot?.requiereFactura ?? false);
   const [sucursalSel, setSucursalSel] = useState(editCot?.sucursal.id ?? '');
   const [vigencia, setVigencia] = useState(editCot ? String(editCot.vigencia) : '15');
   const [anticipoPct, setAnticipoPct] = useState(
@@ -74,14 +97,23 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
           precioUnitario: String(Number(i.precioUnitario)),
           descuentoPct: String(Number(i.descuentoPct)),
           unidad: i.producto.unidad,
+          piezasPorM2: i.producto.piezasPorM2 == null ? null : Number(i.producto.piezasPorM2),
+          unidadCaptura: i.unidadCaptura,
+          cantidadM2: i.cantidadM2 == null ? '' : String(Number(i.cantidadM2)),
+          mermaPct: String(Number(i.mermaPct)),
         }))
       : [],
   );
   const [formError, setFormError] = useState<string | null>(null);
 
   const sucursalId = sucursalSel || user?.sucursalId || sucursales?.[0]?.id || '';
+  const faltantes = faltantesFiscales(clienteFiscal);
 
   function addProducto(p: Producto) {
+    const eq = p.piezasPorM2 == null ? null : Number(p.piezasPorM2);
+    // Si el producto se vende por superficie, arranca en m²: es como lo pide el
+    // cliente ("necesito 2 m² de adocreto"). El toggle permite volver a piezas.
+    const porM2 = admiteCapturaM2(p.unidad, eq);
     setRows((r) => [
       ...r,
       {
@@ -92,6 +124,10 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
         precioUnitario: p.precioBase,
         descuentoPct: '0',
         unidad: p.unidad,
+        piezasPorM2: eq,
+        unidadCaptura: porM2 ? 'M2' : 'PZA',
+        cantidadM2: porM2 ? '1' : '',
+        mermaPct: porM2 ? String(MERMA_PCT_DEFAULT) : '0',
       },
     ]);
   }
@@ -99,15 +135,49 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
   function updateRow(key: string, field: keyof Row, value: string) {
     setRows((r) => r.map((row) => (row.key === key ? { ...row, [field]: value } : row)));
   }
+  function cambiarCaptura(key: string, unidadCaptura: UnidadCaptura) {
+    setRows((r) =>
+      r.map((row) => {
+        if (row.key !== key) return row;
+        if (unidadCaptura === 'M2') {
+          return {
+            ...row,
+            unidadCaptura,
+            cantidadM2: row.cantidadM2 || '1',
+            mermaPct: row.mermaPct === '0' ? String(MERMA_PCT_DEFAULT) : row.mermaPct,
+          };
+        }
+        // De vuelta a piezas: se conserva lo calculado para no perder el número.
+        const conv = convertirSeguro(num(row.cantidadM2), row.piezasPorM2, num(row.mermaPct));
+        return {
+          ...row,
+          unidadCaptura,
+          cantidad: conv ? String(conv.piezas) : row.cantidad,
+          mermaPct: '0',
+        };
+      }),
+    );
+  }
   function removeRow(key: string) {
     setRows((r) => r.filter((row) => row.key !== key));
   }
 
-  const lineas = rows.map((r) => ({
-    ...r,
-    importe: round2(num(r.cantidad) * num(r.precioUnitario) * (1 - num(r.descuentoPct) / 100)),
-  }));
-  const bruto = round2(lineas.reduce((s, l) => s + num(l.cantidad) * num(l.precioUnitario), 0));
+  const lineas = rows.map((r) => {
+    const conv =
+      r.unidadCaptura === 'M2'
+        ? convertirSeguro(num(r.cantidadM2), r.piezasPorM2, num(r.mermaPct))
+        : null;
+    // Las piezas mandan en el dinero, siempre. En m² son las que salieron de la
+    // conversión; el servidor repite este cálculo y su resultado es el que vale.
+    const piezas = r.unidadCaptura === 'M2' ? (conv?.piezas ?? 0) : num(r.cantidad);
+    return {
+      ...r,
+      conv,
+      piezas,
+      importe: round2(piezas * num(r.precioUnitario) * (1 - num(r.descuentoPct) / 100)),
+    };
+  });
+  const bruto = round2(lineas.reduce((s, l) => s + l.piezas * num(l.precioUnitario), 0));
   const subtotalNeto = round2(lineas.reduce((s, l) => s + l.importe, 0));
   const descuentoTotal = round2(bruto - subtotalNeto);
   const iva = round2(subtotalNeto * IVA_RATE);
@@ -121,19 +191,31 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
     if (!clienteId) return setFormError('Selecciona un cliente.');
     if (!sucursalId) return setFormError('Selecciona una sucursal.');
     if (rows.length === 0) return setFormError('Agrega al menos una partida.');
-    if (rows.some((r) => num(r.cantidad) <= 0))
-      return setFormError('Las cantidades deben ser mayores a 0.');
+    const invalida = lineas.find((l) => l.piezas <= 0);
+    if (invalida) {
+      return setFormError(
+        invalida.unidadCaptura === 'M2'
+          ? `Indica los m² de "${invalida.descripcion}".`
+          : `La cantidad de "${invalida.descripcion}" debe ser mayor a 0.`,
+      );
+    }
 
     const base = {
       clienteId,
       vigencia: Number(vigencia) || 15,
       anticipoPct: Number(anticipoPct) || 60,
       observaciones: observaciones || undefined,
-      items: rows.map((r) => ({
+      requiereFactura,
+      items: lineas.map((r) => ({
         productoId: r.productoId,
-        cantidad: num(r.cantidad),
+        // En m² se manda como referencia: el servidor la recalcula y su número
+        // es el que se guarda.
+        cantidad: r.piezas,
         precioUnitario: num(r.precioUnitario),
         descuentoPct: num(r.descuentoPct),
+        unidadCaptura: r.unidadCaptura,
+        cantidadM2: r.unidadCaptura === 'M2' ? num(r.cantidadM2) : undefined,
+        mermaPct: r.unidadCaptura === 'M2' ? num(r.mermaPct) : 0,
       })),
     };
     if (esEdicion && editCot) {
@@ -177,7 +259,10 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
                 <ClienteBuscador
                   value={clienteId}
                   initialLabel={editCot?.cliente.nombre}
-                  onSelect={(c) => setClienteId(c?.id ?? '')}
+                  onSelect={(c) => {
+                    setClienteId(c?.id ?? '');
+                    setClienteFiscal(c);
+                  }}
                 />
               </Field>
               <Field label="Sucursal" htmlFor="sucursal">
@@ -216,6 +301,25 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
                   onChange={(e) => setAnticipoPct(e.target.value)}
                 />
               </Field>
+            </div>
+            {/* Factura: la emite Alegra, pero aquí se decide si va a hacer falta. */}
+            <div className="mt-4 rounded-lg border border-slate-200 bg-paper px-4 py-3">
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-navy-900">
+                <input
+                  type="checkbox"
+                  checked={requiereFactura}
+                  onChange={(e) => setRequiereFactura(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer accent-navy-700"
+                />
+                El cliente requiere factura
+              </label>
+              {requiereFactura && faltantes.length > 0 ? (
+                <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  A este cliente le falta <strong>{faltantes.join(', ')}</strong> para poder
+                  facturarle. Se puede cotizar igual, pero hay que completar sus datos fiscales
+                  antes de emitir el CFDI en Alegra.
+                </p>
+              ) : null}
             </div>
             {clienteId ? (
               <div className="mt-4">
@@ -263,21 +367,73 @@ function BuilderForm({ editCot }: { editCot?: CotizacionDetail }) {
                     <tr key={l.key} className="border-b border-slate-100 last:border-0">
                       <td className="px-5 py-2.5">
                         <span className="font-medium text-navy-900">{l.descripcion}</span>
+                        {admiteCapturaM2(l.unidad, l.piezasPorM2) ? (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <CapturaToggle
+                              value={l.unidadCaptura}
+                              etiquetaPza={UNIDAD_LABEL[l.unidad]}
+                              onChange={(v) => cambiarCaptura(l.key, v)}
+                            />
+                            <span className="font-mono text-[0.62rem] text-slate-400">
+                              {l.piezasPorM2} pz/m²
+                            </span>
+                            {l.unidadCaptura === 'M2' ? (
+                              <label className="flex items-center gap-1 font-mono text-[0.62rem] text-slate-400">
+                                merma
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="1"
+                                  aria-label={`Merma de ${l.descripcion}`}
+                                  className="h-7 w-14 text-right font-mono text-xs"
+                                  value={l.mermaPct}
+                                  onChange={(e) => updateRow(l.key, 'mermaPct', e.target.value)}
+                                />
+                                %
+                              </label>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {l.conv ? (
+                          <p className="mt-1 font-mono text-[0.62rem] text-navy-500">
+                            {resumenCaptura(l.conv)}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center justify-end gap-1.5">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
-                            aria-label="Cantidad"
-                            className="h-9 w-20 text-right font-mono text-sm"
-                            value={l.cantidad}
-                            onChange={(e) => updateRow(l.key, 'cantidad', e.target.value)}
-                          />
-                          <span className="w-7 shrink-0 font-mono text-[0.65rem] text-slate-400">
-                            {UNIDAD_LABEL[l.unidad]}
-                          </span>
+                          {l.unidadCaptura === 'M2' ? (
+                            <>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                aria-label={`Metros cuadrados de ${l.descripcion}`}
+                                className="h-9 w-20 text-right font-mono text-sm"
+                                value={l.cantidadM2}
+                                onChange={(e) => updateRow(l.key, 'cantidadM2', e.target.value)}
+                              />
+                              <span className="w-7 shrink-0 font-mono text-[0.65rem] text-slate-400">
+                                m²
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                aria-label="Cantidad"
+                                className="h-9 w-20 text-right font-mono text-sm"
+                                value={l.cantidad}
+                                onChange={(e) => updateRow(l.key, 'cantidad', e.target.value)}
+                              />
+                              <span className="w-7 shrink-0 font-mono text-[0.65rem] text-slate-400">
+                                {UNIDAD_LABEL[l.unidad]}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
