@@ -1,12 +1,11 @@
 import { prisma } from '@motipreca/database';
-import { createVentaSchema, registrarPagoSchema } from '@motipreca/shared';
+import { IVA_RATE, createVentaSchema, registrarPagoSchema } from '@motipreca/shared';
 import type { FastifyInstance } from 'fastify';
 import { conflict, notFound, unauthorized, validationError } from '../lib/errors.js';
 import { resolverCantidad } from '../lib/partidas.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 
-const IVA_RATE = 0.16;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 const pos = { preHandler: [authenticate, authorize('CAJERO', 'GERENTE', 'ADMINISTRADOR')] };
 

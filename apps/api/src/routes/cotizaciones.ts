@@ -1,5 +1,6 @@
 import { Prisma, prisma } from '@motipreca/database';
 import {
+  IVA_RATE,
   cobrarCotizacionSchema,
   createCotizacionSchema,
   estadoCotizacionSchema,
@@ -38,7 +39,6 @@ async function reglaNivel1() {
     montoMinimo: nivel?.montoMinimo != null ? Number(nivel.montoMinimo) : null,
   };
 }
-const IVA_RATE = 0.16;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /** Valida productos, toma snapshot de descripción y calcula partidas + totales.

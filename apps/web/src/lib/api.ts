@@ -140,9 +140,26 @@ export const authApi = {
 
 // ---- Sincronización Alegra (Gerente/Admin) ----
 
+/** Equivalencia por m² donde la descripción de Alegra y Motipos no coinciden. */
+export interface EquivalenciaConflicto {
+  codigo: string;
+  nombre: string;
+  segunAlegra: number;
+  enMotipos: number;
+}
+
 export interface AlegraSyncSummary {
   clientes: { creados: number; actualizados: number; omitidos: number; total: number };
-  productos: { creados: number; actualizados: number; total: number };
+  productos: {
+    creados: number;
+    actualizados: number;
+    total: number;
+    /** Equivalencias por m² rellenadas leyendo "Rendimiento: N piezas/m²" de Alegra. */
+    equivalenciasLlenadas: number;
+    /** Traían rendimiento pero su precio no reconcilia: no se guardó nada. */
+    equivalenciasIncoherentes: number;
+  };
+  equivalenciasEnConflicto: EquivalenciaConflicto[];
   detalle: string[];
 }
 

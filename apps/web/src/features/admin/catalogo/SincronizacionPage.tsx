@@ -41,8 +41,14 @@ export function SincronizacionPage() {
             <p className="mt-1.5 text-sm text-slate-600">
               Alegra manda en el catálogo: nombre, código, precio y unidad de los productos, y los
               datos fiscales de los clientes. Lo que es nuestro —{' '}
-              <strong>equivalencias por m², línea de crédito, sucursal y notas</strong> — no se
-              pisa.
+              <strong>ficha técnica, línea de crédito, sucursal y notas</strong> — no se pisa.
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Con una excepción a favor: cuando la descripción del producto en Alegra dice{' '}
+              <em>“Rendimiento: N piezas/m²”</em>, esa equivalencia se{' '}
+              <strong>rellena sola si aquí estaba vacía</strong>, y se comprueba contra el precio
+              por m² de la misma descripción antes de guardarla. Lo que ya tenía valor no se toca:
+              se avisa si no coinciden.
             </p>
             <p className="mt-2 text-sm text-slate-600">
               Los clientes también se sincronizan solos por webhook cuando cambian en Alegra; esto
@@ -72,7 +78,38 @@ export function SincronizacionPage() {
                   label="Productos"
                   detail={`${resultado.data.productos.creados} nuevos · ${resultado.data.productos.actualizados} actualizados`}
                 />
+                <Stat
+                  label="Equivalencias m²"
+                  detail={
+                    `${resultado.data.productos.equivalenciasLlenadas} rellenadas desde Alegra` +
+                    (resultado.data.productos.equivalenciasIncoherentes > 0
+                      ? ` · ${resultado.data.productos.equivalenciasIncoherentes} descartadas`
+                      : '')
+                  }
+                />
               </div>
+
+              {resultado.data.equivalenciasEnConflicto.length > 0 ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="mb-1.5 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-amber-700">
+                    Alegra no coincide con lo cargado aquí
+                  </p>
+                  <ul className="space-y-1">
+                    {resultado.data.equivalenciasEnConflicto.map((c) => (
+                      <li key={c.codigo} className="text-xs text-slate-700">
+                        <span className="font-mono text-navy-800">{c.codigo}</span>: Alegra dice{' '}
+                        <strong>{c.segunAlegra}</strong> pz/m², aquí hay{' '}
+                        <strong>{c.enMotipos}</strong>. {c.nombre}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-slate-600">
+                    No se cambió nada: quien cargó el valor de Motipos pudo haber medido la pieza.
+                    Si Alegra tiene razón, corrígelo en Ficha técnica o en el producto.
+                  </p>
+                </div>
+              ) : null}
+
               <ul className="max-h-80 space-y-1 overflow-auto rounded-lg border border-slate-200 bg-paper p-3 text-xs text-slate-600">
                 {resultado.data.detalle.map((line) => (
                   <li key={line}>{line}</li>
