@@ -26,6 +26,19 @@ const TIPOS = [
   { value: 'STOCK_MINIMO', label: 'Stock mínimo' },
 ] as const;
 
+/** Campo numérico de la ficha técnica: '' significa "no lo tengo", no cero. */
+const numeroOpcional = z
+  .string()
+  .refine(
+    (v) => v === '' || (Number.isFinite(Number(v)) && Number(v) > 0),
+    'Debe ser un número mayor a 0, o vacío',
+  );
+
+/** Decimal de Prisma → texto para el input, sin ceros de relleno ("11.0000" → "11"). */
+function aTexto(valor: string | null | undefined): string {
+  return valor == null ? '' : String(Number(valor));
+}
+
 const formSchema = z.object({
   codigo: z.string().trim().min(2, 'Código muy corto'),
   nombre: z.string().trim().min(2, 'El nombre es muy corto'),
@@ -43,6 +56,10 @@ const formSchema = z.object({
       (v) => v === '' || (Number.isFinite(Number(v)) && Number(v) > 0),
       'Debe ser un número mayor a 0, o vacío si no se vende por m²',
     ),
+  familia: z.string().trim().optional(),
+  dimensionesCm: z.string().trim().optional(),
+  superficieM2: numeroOpcional,
+  pesoKg: numeroOpcional,
   activo: z.boolean().optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
@@ -71,7 +88,11 @@ export function ProductoForm({ producto, pending, errorMessage, onSubmit, onCanc
       unidad: producto?.unidad ?? 'PZA',
       tipoProducto: producto?.tipoProducto ?? 'BAJO_PEDIDO',
       precioBase: producto?.precioBase ?? '',
-      piezasPorM2: producto?.piezasPorM2 == null ? '' : String(Number(producto.piezasPorM2)),
+      piezasPorM2: aTexto(producto?.piezasPorM2),
+      familia: producto?.familia ?? '',
+      dimensionesCm: producto?.dimensionesCm ?? '',
+      superficieM2: aTexto(producto?.superficieM2),
+      pesoKg: aTexto(producto?.pesoKg),
       activo: producto?.activo ?? true,
     },
   });
@@ -85,7 +106,13 @@ export function ProductoForm({ producto, pending, errorMessage, onSubmit, onCanc
       unidad: v.unidad,
       tipoProducto: v.tipoProducto,
       precioBase: Number(v.precioBase),
+      // Vacío = borra el dato (null), no "no lo mandes": así se puede quitar una
+      // equivalencia mal cargada desde el formulario.
       piezasPorM2: v.piezasPorM2 === '' ? null : Number(v.piezasPorM2),
+      familia: v.familia ? v.familia : null,
+      dimensionesCm: v.dimensionesCm ? v.dimensionesCm : null,
+      superficieM2: v.superficieM2 === '' ? null : Number(v.superficieM2),
+      pesoKg: v.pesoKg === '' ? null : Number(v.pesoKg),
     };
     onSubmit(isEdit ? { ...base, activo: v.activo } : base);
   });
@@ -150,28 +177,80 @@ export function ProductoForm({ producto, pending, errorMessage, onSubmit, onCanc
         </Field>
       </div>
 
-      <Field
-        label="Piezas por m² (opcional)"
-        htmlFor="piezasPorM2"
-        error={errors.piezasPorM2?.message}
-      >
-        <Input
-          id="piezasPorM2"
-          type="number"
-          step="0.0001"
-          min="0"
-          inputMode="decimal"
-          className="font-mono"
-          placeholder="Ej. 54 para adocreto huesito"
-          {...register('piezasPorM2')}
-          aria-invalid={Boolean(errors.piezasPorM2)}
-        />
-        <p className="mt-1 text-xs text-slate-500">
-          Cuántas piezas cubren 1 m². Al llenarlo, el cotizador y el POS permiten capturar la
-          cantidad en m² y calculan las piezas solas. Déjalo vacío si no aplica. Este dato es de
-          Motipos: Alegra no lo guarda.
+      <fieldset className="mb-5 rounded-lg border border-slate-200 bg-paper px-4 pb-1 pt-3">
+        <legend className="px-1.5 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-slate-400">
+          Ficha técnica
+        </legend>
+        <p className="mb-3 text-xs text-slate-500">
+          Datos de Motipos que Alegra no guarda. Todos son opcionales, y se pueden cargar en bloque
+          desde Catálogo → Ficha técnica.
         </p>
-      </Field>
+
+        <Field label="Piezas por m²" htmlFor="piezasPorM2" error={errors.piezasPorM2?.message}>
+          <Input
+            id="piezasPorM2"
+            type="number"
+            step="0.0001"
+            min="0"
+            inputMode="decimal"
+            className="font-mono"
+            placeholder="Ej. 54 para adocreto huesito"
+            {...register('piezasPorM2')}
+            aria-invalid={Boolean(errors.piezasPorM2)}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Al llenarlo, el cotizador y el POS permiten capturar la cantidad en m² y calculan las
+            piezas solas. Déjalo vacío si no aplica.
+          </p>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Familia" htmlFor="familia" error={errors.familia?.message}>
+            <Input id="familia" {...register('familia')} placeholder="Ej. Vibrocomprimida" />
+          </Field>
+          <Field label="Dimensiones" htmlFor="dimensionesCm" error={errors.dimensionesCm?.message}>
+            <Input
+              id="dimensionesCm"
+              {...register('dimensionesCm')}
+              placeholder="Ej. 30 x 30 x 10"
+              className="font-mono"
+            />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Superficie de 1 pieza (m²)"
+            htmlFor="superficieM2"
+            error={errors.superficieM2?.message}
+          >
+            <Input
+              id="superficieM2"
+              type="number"
+              step="0.0001"
+              min="0"
+              inputMode="decimal"
+              className="font-mono"
+              placeholder="Ej. 0.0909"
+              {...register('superficieM2')}
+              aria-invalid={Boolean(errors.superficieM2)}
+            />
+          </Field>
+          <Field label="Peso de 1 pieza (kg)" htmlFor="pesoKg" error={errors.pesoKg?.message}>
+            <Input
+              id="pesoKg"
+              type="number"
+              step="0.001"
+              min="0"
+              inputMode="decimal"
+              className="font-mono"
+              placeholder="Ej. 10.6"
+              {...register('pesoKg')}
+              aria-invalid={Boolean(errors.pesoKg)}
+            />
+          </Field>
+        </div>
+      </fieldset>
 
       {isEdit ? (
         <label className="mb-5 flex items-center gap-2.5 text-sm text-slate-700">

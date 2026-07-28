@@ -1,12 +1,18 @@
 import { Prisma, prisma } from '@motipreca/database';
-import {
-  createProductoSchema,
-  importarEquivalenciasSchema,
-  updateProductoSchema,
-} from '@motipreca/shared';
+import { createProductoSchema, importarFichaSchema, updateProductoSchema } from '@motipreca/shared';
 import type { FastifyInstance } from 'fastify';
 import { parseCsvConEncabezado } from '../lib/csv.js';
 import { conflict, notFound, validationError } from '../lib/errors.js';
+import {
+  CAMPOS_FICHA,
+  COLUMNA_A_CAMPO,
+  ETIQUETA_CAMPO,
+  leerFilaFicha,
+  revisarSuperficie,
+  type CampoFicha,
+  type Discrepancia,
+  type ErrorFicha,
+} from '../lib/ficha-tecnica.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 
@@ -65,6 +71,10 @@ export async function productoRoutes(app: FastifyInstance): Promise<void> {
         tipoProducto: d.tipoProducto,
         precioBase: d.precioBase,
         piezasPorM2: d.piezasPorM2 ?? null,
+        familia: d.familia ?? null,
+        dimensionesCm: d.dimensionesCm ?? null,
+        superficieM2: d.superficieM2 ?? null,
+        pesoKg: d.pesoKg ?? null,
       },
     });
     reply.code(201);
@@ -97,98 +107,160 @@ export async function productoRoutes(app: FastifyInstance): Promise<void> {
     if (d.precioBase !== undefined) data.precioBase = d.precioBase;
     if (d.activo !== undefined) data.activo = d.activo;
     if (d.piezasPorM2 !== undefined) data.piezasPorM2 = d.piezasPorM2;
+    if (d.familia !== undefined) data.familia = d.familia;
+    if (d.dimensionesCm !== undefined) data.dimensionesCm = d.dimensionesCm;
+    if (d.superficieM2 !== undefined) data.superficieM2 = d.superficieM2;
+    if (d.pesoKg !== undefined) data.pesoKg = d.pesoKg;
 
     const producto = await prisma.producto.update({ where: { id }, data });
     return { data: producto };
   });
 
-  // ---- POST /productos/equivalencias ---- carga masiva de piezas por m² (CSV).
+  // ---- POST /productos/ficha ---- carga masiva de la ficha técnica (CSV).
   //
-  // Solo ACTUALIZA productos existentes, buscándolos por código. No crea nada:
-  // el catálogo es de Alegra y esta equivalencia es el único dato que Alegra no
-  // puede guardar. Un código que no existe aquí se reporta, no se inventa.
+  // Los cinco datos que Alegra no guarda: equivalencia por m², familia,
+  // dimensiones, superficie y peso. Solo ACTUALIZA productos existentes,
+  // buscándolos por código: el catálogo es de Alegra, así que un código que no
+  // existe aquí se reporta, no se inventa.
   //
-  // Columnas requeridas: `codigo` y `piezas_por_m2` (los encabezados se
-  // normalizan, así que `PIEZAS_POR_M2` o `piezas por m²` también sirven).
-  // Una celda de equivalencia vacía se OMITE — así la misma plantilla de precios
-  // se puede subir aunque solo la mitad de las filas traiga el dato.
-  app.post('/productos/equivalencias', gestor, async (request) => {
-    const parsed = importarEquivalenciasSchema.safeParse(request.body);
+  // Requiere la columna `codigo` y al menos una de datos. Los encabezados se
+  // normalizan (`PESO_KG`, `peso kg` y `peso_kg` son lo mismo) y las columnas
+  // que no reconoce las ignora, así que se puede pegar la plantilla completa.
+  // Una celda vacía se OMITE en vez de borrar lo que ya había — así la misma
+  // plantilla sirve aunque solo la mitad de las filas esté completa.
+  app.post('/productos/ficha', gestor, async (request) => {
+    const parsed = importarFichaSchema.safeParse(request.body);
     if (!parsed.success) {
       throw validationError('Datos inválidos', parsed.error.flatten().fieldErrors);
     }
+    const { simular } = parsed.data;
     const { columnas, filas } = parseCsvConEncabezado(parsed.data.csv);
 
-    if (!columnas.includes('codigo') || !columnas.includes('piezas_por_m2')) {
+    if (!columnas.includes('codigo')) {
       throw validationError(
-        `El CSV debe tener las columnas "codigo" y "piezas_por_m2". Encontré: ${columnas.join(', ') || '(ninguna)'}`,
+        `El CSV debe tener una columna "codigo". Encontré: ${columnas.join(', ') || '(ninguna)'}`,
+      );
+    }
+    const columnasDeDatos = CAMPOS_FICHA.filter((c) => columnas.includes(c));
+    if (columnasDeDatos.length === 0) {
+      throw validationError(
+        `El CSV no trae ninguna columna de ficha técnica. Necesito al menos una de: ${CAMPOS_FICHA.join(', ')}.`,
       );
     }
 
-    const actualizados: { codigo: string; piezasPorM2: number; anterior: number | null }[] = [];
+    interface Cambio {
+      columna: CampoFicha;
+      etiqueta: string;
+      anterior: string | number | null;
+      nuevo: string | number;
+    }
+
+    const actualizados: { codigo: string; cambios: Cambio[] }[] = [];
     const sinCambio: string[] = [];
-    const omitidos: string[] = [];
+    const sinDatos: string[] = [];
     const noEncontrados: string[] = [];
-    const invalidos: { codigo: string; valor: string; motivo: string }[] = [];
-    // Productos cuya unidad de venta YA es m²: la equivalencia no les sirve de
-    // nada (su cantidad ya es superficie y su precio es por m²). Se avisa en vez
-    // de guardar un dato que nadie va a usar.
+    const invalidos: (ErrorFicha & { codigo: string })[] = [];
+    // Productos cuya unidad de venta YA es m²: la equivalencia no les sirve
+    // (su cantidad ya es superficie y su precio es por m²), así que se descarta
+    // ESE dato y el resto de la ficha sí se carga.
     const yaEnM2: string[] = [];
+    const discrepancias: Discrepancia[] = [];
 
     for (const fila of filas) {
-      const codigo = fila.codigo?.trim().toUpperCase();
-      const crudo = fila.piezas_por_m2?.trim() ?? '';
-      if (!codigo) continue;
+      const leida = leerFilaFicha(fila);
+      if (!leida) continue;
+      const { codigo, valores, invalidos: malos } = leida;
 
-      if (crudo === '') {
-        omitidos.push(codigo);
-        continue;
-      }
-      const valor = Number(crudo.replace(',', '.'));
-      if (!Number.isFinite(valor) || valor <= 0 || valor > 10_000) {
-        invalidos.push({ codigo, valor: crudo, motivo: 'No es un número mayor a 0' });
-        continue;
-      }
+      for (const malo of malos) invalidos.push({ codigo, ...malo });
 
       const producto = await prisma.producto.findUnique({
         where: { codigo },
-        select: { id: true, unidad: true, piezasPorM2: true },
+        select: {
+          id: true,
+          unidad: true,
+          piezasPorM2: true,
+          familia: true,
+          dimensionesCm: true,
+          superficieM2: true,
+          pesoKg: true,
+        },
       });
       if (!producto) {
         noEncontrados.push(codigo);
         continue;
       }
-      if (producto.unidad === 'M2') {
-        yaEnM2.push(codigo);
+
+      const equivalenciaInutil =
+        producto.unidad === 'M2' && valores.some((v) => v.columna === 'piezas_por_m2');
+      if (equivalenciaInutil) yaEnM2.push(codigo);
+      const aplicables = equivalenciaInutil
+        ? valores.filter((v) => v.columna !== 'piezas_por_m2')
+        : valores;
+      if (aplicables.length === 0) {
+        if (malos.length === 0) sinDatos.push(codigo);
         continue;
       }
 
-      const anterior = producto.piezasPorM2 == null ? null : Number(producto.piezasPorM2);
-      if (anterior === valor) {
+      const data: Prisma.ProductoUncheckedUpdateInput = {};
+      const cambios: Cambio[] = [];
+      for (const { columna, valor } of aplicables) {
+        const campo = COLUMNA_A_CAMPO[columna];
+        const previo = producto[campo];
+        // Los Decimal de Prisma no son comparables con ===; se normalizan a
+        // number, y los textos se comparan tal cual.
+        const anterior =
+          previo == null ? null : typeof valor === 'number' ? Number(previo) : String(previo);
+        if (anterior === valor) continue;
+        data[campo] = valor;
+        cambios.push({ columna, etiqueta: ETIQUETA_CAMPO[columna], anterior, nuevo: valor });
+      }
+
+      // Se coteja con el valor que QUEDA tras la carga, no solo con lo que trae
+      // el CSV: si la fila solo actualiza la superficie, se compara contra las
+      // medidas que ya estaban guardadas.
+      const dimsFinal = aplicables.find((v) => v.columna === 'dimensiones_cm')?.valor;
+      const supFinal = aplicables.find((v) => v.columna === 'superficie_m2')?.valor;
+      const discrepancia = revisarSuperficie(
+        codigo,
+        typeof dimsFinal === 'string' ? dimsFinal : (producto.dimensionesCm ?? undefined),
+        typeof supFinal === 'number'
+          ? supFinal
+          : producto.superficieM2 == null
+            ? undefined
+            : Number(producto.superficieM2),
+      );
+      if (discrepancia) discrepancias.push(discrepancia);
+
+      if (cambios.length === 0) {
         sinCambio.push(codigo);
         continue;
       }
-      if (!parsed.data.simular) {
-        await prisma.producto.update({ where: { id: producto.id }, data: { piezasPorM2: valor } });
+      if (!simular) {
+        await prisma.producto.update({ where: { id: producto.id }, data });
       }
-      actualizados.push({ codigo, piezasPorM2: valor, anterior });
+      actualizados.push({ codigo, cambios });
     }
 
+    const campos = actualizados.reduce((total, a) => total + a.cambios.length, 0);
     return {
       data: {
-        simulacion: parsed.data.simular,
+        simulacion: simular,
         leidas: filas.length,
+        columnasLeidas: columnasDeDatos,
         actualizados,
         sinCambio,
-        omitidos,
+        sinDatos,
         noEncontrados,
         invalidos,
         yaEnM2,
+        discrepancias,
         resumen:
-          `${actualizados.length} ${parsed.data.simular ? 'por actualizar' : 'actualizados'}` +
-          `, ${sinCambio.length} sin cambio, ${omitidos.length} sin dato` +
+          `${actualizados.length} ${simular ? 'productos por actualizar' : 'productos actualizados'}` +
+          ` (${campos} ${campos === 1 ? 'dato' : 'datos'})` +
+          `, ${sinCambio.length} sin cambio, ${sinDatos.length} sin datos` +
           `, ${noEncontrados.length} no encontrados, ${invalidos.length} inválidos` +
-          (yaEnM2.length > 0 ? `, ${yaEnM2.length} ya se venden por m²` : ''),
+          (yaEnM2.length > 0 ? `, ${yaEnM2.length} ya se venden por m²` : '') +
+          (discrepancias.length > 0 ? `, ${discrepancias.length} por revisar` : ''),
       },
     };
   });

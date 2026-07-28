@@ -176,15 +176,36 @@ model Producto {
   precioBase   Decimal      @default(0) @db.Decimal(12, 2)
   activo       Boolean      @default(true)
 
-  // Piezas que cubren 1 m² (adocreto huesito = 54; celosía Amaia = 11).
-  // `null` = el producto no se vende por m² y la UI no ofrece la opción.
+  // ---- FICHA TÉCNICA: datos locales de Motipos ----------------------------
   //
-  // DATO LOCAL DE MOTIPOS: Alegra no lo conoce ni lo puede guardar. El sync
-  // (`lib/alegra/sync.ts`) actualiza con el objeto de `mapItemToProducto`, que
-  // NO incluye este campo, así que Prisma lo deja intacto. Si algún día ese
-  // mapper empieza a devolver el producto completo, esta columna se borra en la
-  // primera sincronización — no agregarlo ahí.
+  // Ninguno de estos cinco campos existe en Alegra. Se cargan por CSV desde
+  // Catálogo → Ficha técnica (`POST /productos/ficha`).
+  //
+  // OJO AL SYNC: `lib/alegra/sync.ts` actualiza con el objeto que devuelve
+  // `mapItemToProducto`, que NO incluye ninguno de estos campos, así que Prisma
+  // los deja intactos. Si ese mapper algún día devuelve el producto completo,
+  // la primera sincronización borra toda la ficha — no agregarlos ahí.
+
+  /** Piezas que cubren 1 m² (adocreto huesito = 54; celosía Amaia = 11).
+   *  `null` = el producto no se vende por m² y la UI no ofrece la opción. */
   piezasPorM2 Decimal? @db.Decimal(10, 4)
+
+  /** Agrupación propia de Motipreca: "Vibrocomprimida", "Concreto", "Adocreto".
+   *  Va aparte de `categoria` porque esa SÍ viene de Alegra y el sync la pisa. */
+  familia String?
+
+  /** Medidas nominales tal como las publica el catálogo: "30 x 30 x 10".
+   *  Texto libre a propósito: es referencia para el vendedor, no se calcula
+   *  nada con ellas (la superficie real va en `superficieM2`). */
+  dimensionesCm String?
+
+  /** Superficie que cubre UNA pieza, en m² (30x30 cm → 0.0909).
+   *  Relacionada con `piezasPorM2` pero no idéntica: la equivalencia manda
+   *  para cotizar, esta es el dato del catálogo y sirve para cotejarlas. */
+  superficieM2 Decimal? @db.Decimal(10, 4)
+
+  /** Peso de UNA pieza, en kg. Sirve para calcular la carga del camión. */
+  pesoKg Decimal? @db.Decimal(10, 3)
 
   // Integración Alegra (Fase 1.5)
   alegraId   String?    @unique

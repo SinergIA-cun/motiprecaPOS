@@ -49,8 +49,8 @@ const NAV_CATALOGO: NavEntry[] = [
     roles: ['GERENTE', 'ADMINISTRADOR'],
   },
   {
-    to: '/admin/equivalencias',
-    label: 'Equivalencias m²',
+    to: '/admin/ficha-tecnica',
+    label: 'Ficha técnica',
     icon: Ruler,
     ready: true,
     roles: ['GERENTE', 'ADMINISTRADOR'],

@@ -111,7 +111,7 @@ export function ProductosPage() {
                     </Td>
                     <Td>
                       <p className="font-medium text-navy-900">{p.nombre}</p>
-                      {p.categoria ? <p className="text-xs text-slate-400">{p.categoria}</p> : null}
+                      <p className="text-xs text-slate-400">{subtitulo(p)}</p>
                     </Td>
                     <Td>
                       <span className="font-mono text-xs text-slate-500">
@@ -175,6 +175,19 @@ export function ProductosPage() {
       </Modal>
     </>
   );
+}
+
+/**
+ * Segunda línea de la fila: la ficha técnica en una sola línea.
+ *
+ * Cae en `categoria` cuando el producto no tiene ficha todavía — el catálogo
+ * llega de Alegra sin ella y se completa por CSV, así que la mayoría empieza
+ * sin nada de esto.
+ */
+function subtitulo(p: Producto): string {
+  const partes = [p.familia, p.dimensionesCm, p.pesoKg == null ? null : `${Number(p.pesoKg)} kg`];
+  const ficha = partes.filter(Boolean).join(' · ');
+  return ficha || p.categoria || '';
 }
 
 function Th({ children, className }: { children: ReactNode; className?: string }) {

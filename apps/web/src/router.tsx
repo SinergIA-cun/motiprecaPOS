@@ -15,7 +15,7 @@ import { POSPage } from './features/pos/POSPage';
 import { TicketPage } from './features/pos/TicketPage';
 import { ProductosPage } from './features/productos/ProductosPage';
 import { VerificarPage } from './features/publico/VerificarPage';
-import { EquivalenciasPage } from './features/admin/catalogo/EquivalenciasPage';
+import { FichaTecnicaPage } from './features/admin/catalogo/FichaTecnicaPage';
 import { SincronizacionPage } from './features/admin/catalogo/SincronizacionPage';
 import { ReglasAprobacionPage } from './features/admin/reglas/ReglasAprobacionPage';
 import { SucursalesPage } from './features/admin/sucursales/SucursalesPage';
@@ -50,7 +50,7 @@ export const router = createBrowserRouter([
             element: <GerenciaRoute />,
             children: [
               { path: '/admin/sincronizacion', element: <SincronizacionPage /> },
-              { path: '/admin/equivalencias', element: <EquivalenciasPage /> },
+              { path: '/admin/ficha-tecnica', element: <FichaTecnicaPage /> },
             ],
           },
           {

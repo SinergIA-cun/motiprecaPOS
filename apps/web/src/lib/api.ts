@@ -9,7 +9,7 @@ import type {
   CreateVentaInput,
   EstadoCotizacion,
   EtapaPedido,
-  ImportarEquivalenciasInput,
+  ImportarFichaInput,
   MetodoPago,
   RegistrarPagoInput,
   Rol,
@@ -283,8 +283,17 @@ export interface Producto {
   tipoProducto: TipoProducto;
   precioBase: string; // Decimal serializado como string
   activo: boolean;
-  /** Piezas que cubren 1 m². null = no se vende por m². Dato local, no de Alegra. */
+  // ---- Ficha técnica: datos locales de Motipos, Alegra no los guarda ----
+  /** Piezas que cubren 1 m². null = no se vende por m². */
   piezasPorM2: string | null;
+  /** Agrupación propia ("Vibrocomprimida"). Distinta de `categoria`, que sí es de Alegra. */
+  familia: string | null;
+  /** Medidas nominales del catálogo: "30 x 30 x 10". */
+  dimensionesCm: string | null;
+  /** Superficie de UNA pieza, en m². */
+  superficieM2: string | null;
+  /** Peso de UNA pieza, en kg. */
+  pesoKg: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -316,25 +325,50 @@ export const productosApi = {
       { method: 'PATCH', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),
-  importarEquivalencias: (input: ImportarEquivalenciasInput) =>
-    request<{ data: ResultadoEquivalencias }>(
-      '/productos/equivalencias',
+  importarFicha: (input: ImportarFichaInput) =>
+    request<{ data: ResultadoFicha }>(
+      '/productos/ficha',
       { method: 'POST', body: JSON.stringify(input) },
       true,
     ).then((r) => r.data),
 };
 
-/** Resultado de la carga masiva de piezas por m². */
-export interface ResultadoEquivalencias {
+export type CampoFicha =
+  | 'piezas_por_m2'
+  | 'familia'
+  | 'dimensiones_cm'
+  | 'superficie_m2'
+  | 'peso_kg';
+
+export interface CambioFicha {
+  columna: CampoFicha;
+  etiqueta: string;
+  anterior: string | number | null;
+  nuevo: string | number;
+}
+
+/** Resultado de la carga masiva de la ficha técnica. */
+export interface ResultadoFicha {
   simulacion: boolean;
   leidas: number;
-  actualizados: { codigo: string; piezasPorM2: number; anterior: number | null }[];
+  /** Columnas de ficha que traía el CSV, para confirmar qué se cargó. */
+  columnasLeidas: CampoFicha[];
+  actualizados: { codigo: string; cambios: CambioFicha[] }[];
   sinCambio: string[];
-  omitidos: string[];
+  /** Existen en el catálogo pero su fila venía sin ningún dato. */
+  sinDatos: string[];
   noEncontrados: string[];
-  invalidos: { codigo: string; valor: string; motivo: string }[];
-  /** Productos cuya unidad ya es m²: la equivalencia no aplica. */
+  invalidos: { codigo: string; columna: CampoFicha; valor: string; motivo: string }[];
+  /** Su unidad ya es m²: se cargó todo menos la equivalencia, que no aplica. */
   yaEnM2: string[];
+  /** La superficie declarada no cuadra con las medidas: hay que confirmar el dato. */
+  discrepancias: {
+    codigo: string;
+    dimensiones: string;
+    superficieDeclarada: number;
+    superficieSegunMedidas: number;
+    diferenciaPct: number;
+  }[];
   resumen: string;
 }
 
