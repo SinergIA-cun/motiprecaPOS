@@ -17,7 +17,7 @@ usuarios. En vivo en `https://motipos.somossinergia.com`.
 | ------------------ | -------------------------------------------------------------------------------------- |
 | Monorepo           | Turborepo + pnpm (workspaces)                                                          |
 | Runtime            | Node.js 24 LTS                                                                         |
-| Backend            | Fastify 5 · Prisma 6 · PostgreSQL 16 · Redis 7 · Zod · JWT (jose) · argon2id           |
+| Backend            | Fastify 5 · Prisma 6 · PostgreSQL 16 · Zod · JWT (jose) · argon2id                     |
 | Frontend           | React 18 · Vite 6 · Tailwind CSS v4 · TanStack Query · Zustand · React Hook Form + Zod |
 | UI                 | Librería de componentes propia (sin shadcn) — estilo "Swiss utilitario" en navy        |
 | Deploy             | Docker en EasyPanel (VPS Hostinger), build desde GitHub                                |
@@ -49,7 +49,7 @@ Requisitos: Node 24, pnpm 11 (vía `corepack`), Docker.
 corepack enable
 pnpm install
 
-# Postgres (host :5433) + Redis (:6379) en Docker
+# Postgres (host :5433) en Docker
 docker compose up -d
 
 # Variables de entorno (rellena los JWT_* con: openssl rand -base64 64)
@@ -78,7 +78,7 @@ Usuario de prueba: `admin@test.com` / `test1234`.
 ## Despliegue
 
 EasyPanel construye las imágenes desde GitHub (`main`) directamente en el VPS. Hay dos
-servicios de aplicación (`motipreca_api`, `motipreca_web`) más Postgres y Redis
+servicios de aplicación (`motipreca_api`, `motipreca_web`) más Postgres
 administrados. Variables de producción: ver [.env.production.example](.env.production.example).
 Guía y notas de configuración: [docs/handoff/07_setup_easypanel.md](docs/handoff/07_setup_easypanel.md).
 

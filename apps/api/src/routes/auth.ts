@@ -8,7 +8,7 @@ import { dummyHash, verifyPassword } from '../lib/password.js';
 import { isLoginBlocked, registerLoginFailure, resetLoginFailures } from '../lib/login-throttle.js';
 import {
   generateRefreshToken,
-  getRefreshTokenUserId,
+  consumeRefreshToken,
   REFRESH_COOKIE,
   REFRESH_TTL_SECONDS,
   revokeRefreshToken,
@@ -99,14 +99,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         throw unauthorized('Sin sesión activa');
       }
 
-      const userId = await getRefreshTokenUserId(token);
+      // Rotación: validar e invalidar el refresh usado es UNA operación, para
+      // que dos refrescos simultáneos con el mismo token no pasen los dos.
+      const userId = await consumeRefreshToken(token);
       if (!userId) {
         reply.clearCookie(REFRESH_COOKIE, { path: '/auth' });
         throw unauthorized('Sesión inválida o expirada');
       }
-
-      // Rotación: el refresh usado se invalida y se emite uno nuevo.
-      await revokeRefreshToken(token);
 
       const usuario = await prisma.usuario.findUnique({ where: { id: userId } });
       if (!usuario || !usuario.activo) {

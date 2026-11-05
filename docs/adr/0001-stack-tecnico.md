@@ -60,3 +60,19 @@ Stack adoptado:
 - **Pendientes conocidos:**
   - 2FA TOTP para Administrador (campos `has2FA`/`totpSecret` ya en el modelo, sin cablear).
   - Refresh automático del access token al expirar (401 → `/auth/refresh` → reintento).
+
+## Enmienda (2026-11-05): se quita Redis
+
+Redis solo guardaba los refresh tokens y el contador de intentos de login, y el
+rate-limit global usaba su store. El 2026-11-05 su contenedor dejó de correr en
+EasyPanel y el login completo se cayó con el API vivo (`ENOTFOUND
+sinergia_motipreca_posr`). Se movió todo a Postgres:
+
+- `SesionRefresh`: el refresh se guarda como SHA-256 (antes en claro como clave
+  de Redis). La rotación pasó a ser un solo `DELETE … RETURNING`; antes era leer
+  y luego borrar, y dos refrescos simultáneos con el mismo token pasaban los dos.
+- `IntentoLogin`: ventana fija de 15 min con `INSERT … ON CONFLICT`.
+- El rate-limit global queda en memoria del proceso. Vale mientras haya una sola
+  instancia del API.
+
+Un servicio menos que operar y una causa menos de caída total.

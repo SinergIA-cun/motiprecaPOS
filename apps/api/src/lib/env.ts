@@ -20,7 +20,6 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL es requerida'),
-  REDIS_URL: z.string().min(1, 'REDIS_URL es requerida'),
 
   JWT_SECRET: z.string().min(1, 'JWT_SECRET es requerida'),
   JWT_REFRESH_SECRET: z.string().min(1, 'JWT_REFRESH_SECRET es requerida'),

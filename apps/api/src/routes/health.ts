@@ -1,29 +1,16 @@
 import { prisma } from '@motipreca/database';
 import type { FastifyInstance } from 'fastify';
-import { redis } from '../lib/redis.js';
 
-/** Healthcheck sin auth: valida conexión a PostgreSQL y Redis. */
+/** Healthcheck sin auth: valida la conexión a PostgreSQL, la única dependencia. */
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async (_request, reply) => {
-    let db: 'ok' | 'error' = 'error';
-    let cache: 'ok' | 'error' = 'error';
-
     try {
       await prisma.$queryRaw`SELECT 1`;
-      db = 'ok';
+      return { status: 'ok', db: 'ok' };
     } catch (err) {
       app.log.error({ err }, 'Healthcheck: fallo de conexión a PostgreSQL');
+      reply.code(503);
+      return { status: 'degraded', db: 'error' };
     }
-
-    try {
-      const pong = await redis.ping();
-      cache = pong === 'PONG' ? 'ok' : 'error';
-    } catch (err) {
-      app.log.error({ err }, 'Healthcheck: fallo de conexión a Redis');
-    }
-
-    const healthy = db === 'ok' && cache === 'ok';
-    reply.code(healthy ? 200 : 503);
-    return { status: healthy ? 'ok' : 'degraded', db, redis: cache };
   });
 }

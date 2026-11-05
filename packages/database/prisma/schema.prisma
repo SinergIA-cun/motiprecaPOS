@@ -92,9 +92,36 @@ model Usuario {
   aprobaciones Aprobacion[]  @relation("aprobador")
   ventas       Venta[]       @relation("cajero")
   accesosCaja  AccesoCaja[]
+  sesiones     SesionRefresh[]
 
   @@index([email])
   @@index([sucursalId])
+}
+
+/// Refresh tokens vivos (whitelist de sesión). Antes vivían en Redis; se
+/// pasaron a Postgres (nov-2026) para quitar un servicio entero: Redis solo
+/// guardaba esto y el contador de intentos de login, y cuando su contenedor se
+/// cayó tumbó el login completo con el API vivo.
+///
+/// Se guarda el SHA-256 del token, nunca el token: si la base se filtra, las
+/// sesiones no quedan expuestas. Al rotar o cerrar sesión se BORRA la fila.
+model SesionRefresh {
+  tokenHash String   @id
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEn  DateTime
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
+  @@index([expiraEn])
+}
+
+/// Intentos fallidos de login por cuenta (no por IP: en una tienda todas las
+/// terminales salen por la misma IP). Ventana fija que arranca en el primer fallo.
+model IntentoLogin {
+  email        String   @id
+  fallos       Int
+  ventanaHasta DateTime
 }
 
 model RangoFolio {

@@ -7,7 +7,6 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { env } from './lib/env.js';
 import { AppError } from './lib/errors.js';
-import { redis } from './lib/redis.js';
 import { authRoutes } from './routes/auth.js';
 import { reintentarClientesPendientes } from './lib/alegra/push.js';
 import { asegurarSuscripciones, barridoReconciliacion } from './lib/alegra/suscripciones.js';
@@ -54,11 +53,14 @@ await app.register(cors, {
 
 await app.register(cookie);
 
+// Contador en memoria del proceso (antes en Redis). Basta mientras haya UNA
+// instancia del API, que es lo que corre en EasyPanel. Si algún día se escala a
+// varias réplicas, cada una contaría por su lado y el límite real se
+// multiplicaría por el número de réplicas.
 await app.register(rateLimit, {
   global: true,
   max: 100, // 100 req/min por IP por defecto (regla #42)
   timeWindow: '1 minute',
-  redis,
   errorResponseBuilder: () => ({
     error: { code: 'RATE_LIMITED', message: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' },
   }),
@@ -112,7 +114,6 @@ async function shutdown(signal: string): Promise<void> {
   app.log.info(`Recibido ${signal}, cerrando conexiones...`);
   await app.close();
   await prisma.$disconnect();
-  redis.disconnect();
 }
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

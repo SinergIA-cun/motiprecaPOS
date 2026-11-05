@@ -1,4 +1,4 @@
-# Desarrollo local — PostgreSQL 16 + Redis 7
+# Desarrollo local — PostgreSQL 16 (Redis se quitó en nov-2026: todo vive en Postgres)
 # Arrancar:  docker compose up -d
 # Detener:   docker compose down
 # Reset BD:  docker compose down -v   (borra el volumen de datos)
@@ -24,20 +24,5 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    container_name: motipreca-redis
-    restart: unless-stopped
-    ports:
-      - '6379:6379'
-    volumes:
-      - motipreca-redisdata:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
 volumes:
   motipreca-pgdata:
-  motipreca-redisdata:
